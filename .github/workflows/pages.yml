@@ -12,6 +12,12 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  # pypi's index intermittently times out from github runners; longer reads
+  # and more retries keep installs from failing the job.
+  PIP_DEFAULT_TIMEOUT: '60'
+  PIP_RETRIES: '10'
+
 permissions:
   contents: read
 
@@ -31,6 +37,8 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'pyproject.toml'
 
       - name: Install MkDocs
         run: pip install ".[docs]"

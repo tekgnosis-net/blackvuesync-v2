@@ -650,8 +650,12 @@ All endpoints below require authentication (subject to `auth.mode`).
 | --- | --- | --- |
 | `GET` | `/api/stats/series?range=24h\|7d\|30d\|all` | JSON `{range, summary, series, forecast}` |
 
-`summary` = `{runs, bytes, avg_duration_seconds, success_rate}`;
-`series.points[]` = `{ts, bytes, files, duration, disk, success, dry_run, failures{reason}}`
+`summary` = `{runs, offline, reachable_runs, bytes, avg_duration_seconds, success_rate}`;
+`series.points[]` = `{ts, bytes, files, duration, disk, success, dry_run, offline, failures{reason}}`.
+A run is `offline` when it failed and its only non-zero failure reasons are
+`network` / `timeout` (the dashcam was not reachable, e.g. the car was away).
+`success_rate` and `avg_duration_seconds` cover only the `reachable_runs`;
+`success_rate` is `null` when no run in the range reached the dashcam.
 (dry-run rows are excluded from the `bytes` total);
 `forecast` = `{projected[{ts, disk}], limits{max_used_disk_percent, keep_steady_state}}`
 (disk / limit values are 0..1 ratios). Per-run rows are captured in serve mode and

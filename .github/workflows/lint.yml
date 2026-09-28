@@ -6,6 +6,13 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  # pre-commit builds the trufflehog hook with go; "|direct" falls back to a
+  # direct download on any module-proxy error, not only 404/410.
+  GOPROXY: https://proxy.golang.org|direct
+  PIP_DEFAULT_TIMEOUT: '60'
+  PIP_RETRIES: '10'
+
 permissions:
   contents: read
 

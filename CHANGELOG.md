@@ -12,6 +12,24 @@ repository. Versions 2.2.0 and earlier are the upstream
 [BlackVue Sync](https://github.com/acolomba/blackvuesync) by Alessandro
 Colomba; their numbers refer to upstream pull requests.
 
+## Unreleased
+
+### Fixed
+
+* Statistics counted every run made while the car was away as a failure, so
+  the success rate mostly measured how often the car was gone. Runs that could
+  not reach the dashcam (only `network` / `timeout` failures) are now counted
+  in a new **Dashcam offline** tile and shown as grey bars in the failures
+  chart. The success rate and average duration cover only runs that reached
+  the dashcam, and show `--` when none did. Existing run history is
+  reclassified automatically. Prometheus metrics are unchanged.
+
+### Changed
+
+* CI retries slow PyPI index reads (`PIP_DEFAULT_TIMEOUT=60`,
+  `PIP_RETRIES=10`) and falls back to direct Go module downloads when the Go
+  proxy fails, so network hiccups no longer fail pull requests.
+
 ## 3.0.1 - 2026-09-28
 
 ### Fixed

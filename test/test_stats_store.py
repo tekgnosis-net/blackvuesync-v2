@@ -124,3 +124,26 @@ def test_latest_returns_newest_run_or_none(tmp_path: Path) -> None:
     latest = store.latest()
     assert latest is not None
     assert (latest.ts_seconds, latest.success, latest.files) == (300.0, 0, 3)
+
+
+def test_run_row_unreachable_ignores_zero_count_reasons() -> None:
+    import dataclasses
+
+    base = RunRow(
+        ts_seconds=0.0, success=0, exit_code=1, duration_seconds=3.0, files=0,
+        bytes=0, recordings_seen=0, recordings_selected=0, disk_used_ratio=None,
+        failed_markers=0, failures={}, dry_run=0,
+    )  # fmt: skip
+    zeros = {"network": 0, "timeout": 0, "http": 0, "disk": 0, "unknown": 0}
+    cases = [
+        ({**zeros, "network": 1}, 0, True),
+        ({**zeros, "timeout": 2}, 0, True),
+        ({**zeros, "network": 1, "timeout": 1}, 0, True),
+        ({**zeros, "network": 1, "disk": 1}, 0, False),  # a real failure too
+        ({**zeros, "http": 1}, 0, False),
+        (zeros, 0, False),  # failed with no recorded reason
+        ({**zeros, "network": 1}, 1, False),  # succeeded despite a file hiccup
+    ]
+    for failures, success, expected in cases:
+        row = dataclasses.replace(base, failures=failures, success=success)
+        assert row.unreachable is expected, (failures, success)

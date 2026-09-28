@@ -5,6 +5,7 @@
 
 const RANGE_DEFAULT = "7d";
 const FAILURE_REASONS = ["http", "network", "timeout", "disk", "unknown"];
+const OFFLINE_COLOR = "rgba(142, 142, 147, 0.45)"; // neutral grey in both themes
 const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB"];
 
 function fmtBytes(n) {
@@ -33,11 +34,19 @@ function isAuthFailure(resp) {
   );
 }
 
+// runs that could not reach the dashcam (car away) form their own neutral
+// series instead of stacking into the network/timeout failure reasons.
 function failureDatasets(points) {
-  return FAILURE_REASONS.map((reason) => ({
+  const reasons = FAILURE_REASONS.map((reason) => ({
     label: reason,
-    data: points.map((p) => p.failures?.[reason] ?? 0),
+    data: points.map((p) => (p.offline ? 0 : p.failures?.[reason] ?? 0)),
   }));
+  reasons.push({
+    label: "dashcam offline",
+    data: points.map((p) => (p.offline ? 1 : 0)),
+    backgroundColor: OFFLINE_COLOR,
+  });
+  return reasons;
 }
 
 document.addEventListener("alpine:init", () => {
@@ -114,10 +123,12 @@ document.addEventListener("alpine:init", () => {
         "[data-summary-duration]",
         (summary.avg_duration_seconds || 0).toFixed(1) + " s",
       );
+      // success rate covers only runs that reached the dashcam; null when none did
       this.setText(
         "[data-summary-success]",
-        (summary.success_rate * 100).toFixed(1) + "%",
+        summary.success_rate == null ? "--" : (summary.success_rate * 100).toFixed(1) + "%",
       );
+      this.setText("[data-summary-offline]", String(summary.offline ?? 0));
     },
 
     setText(selector, text) {
@@ -135,7 +146,13 @@ document.addEventListener("alpine:init", () => {
       const volumeLabels = volume.map((p) => tsLabel(p.ts));
       this.drawLine("bytes", volumeLabels, volume.map((p) => p.bytes), "Bytes");
       this.drawBar("files", volumeLabels, volume.map((p) => p.files), "Files");
-      this.drawLine("duration", labels, points.map((p) => p.duration), "Seconds");
+      // offline runs only measure a connection timeout; leave them out
+      this.drawLine(
+        "duration",
+        labels,
+        points.map((p) => (p.offline ? null : p.duration)),
+        "Seconds"
+      );
       this.drawFailures("failures", labels, points);
       this.drawDisk("disk", points, data.forecast);
     },

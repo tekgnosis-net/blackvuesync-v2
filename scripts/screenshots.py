@@ -369,28 +369,45 @@ def seed_stats(db_path: Path, now: float, disk_now: float) -> None:
     ts = start - (start % 900)
     first_ts = ts
     while ts < now - 900:
-        local_hour = datetime.datetime.fromtimestamp(ts, tz).hour
-        after_drive = local_hour in (9, 10, 18, 19) and (ts // 900) % 4 == 0
+        local = datetime.datetime.fromtimestamp(ts, tz)
+        local_hour = local.hour
+        minutes = local.hour * 60 + local.minute
+        weekday = local.weekday() < 5
+        # the car is away at work on weekdays and out late morning at weekends;
+        # each drive downloads once it is back home.
+        if weekday:
+            away = 8 * 60 + 30 <= minutes < 17 * 60 + 30
+            after_drive = local.hour in (18, 19) and local.minute == 0
+        else:
+            away = 11 * 60 <= minutes < 13 * 60 + 30
+            after_drive = local.hour == 14 and local.minute == 0
         files = 24 if after_drive else 0
         size = files * 42_000_000
         progress = (ts - first_ts) / (now - first_ts)
         # daily sawtooth: downloads fill during the day, retention trims at 3am
         daily = 0.003 * ((local_hour - 3) % 24) / 24
         disk = disk_now - 0.06 * (1 - progress) - 0.003 + daily
-        failed = (ts // 900) % 97 == 0
+        failed = not away and (ts // 900) % 97 == 0  # a rare real failure
+        if away:
+            reasons, success, duration = {"network": 1}, 0, 3.0
+        elif failed:
+            reasons, success, duration = {"http": 1}, 0, 8.0
+        else:
+            reasons, success = {}, 1
+            duration = 120.0 + files * 6.5 if files else 2.1
         rows.append(
             (
                 float(ts),
-                0 if failed else 1,
-                1 if failed else 0,
-                120.0 + files * 6.5 if files else 2.1,
-                0 if failed else files,
-                0 if failed else size,
+                success,
+                0 if success else 1,
+                duration,
+                files if success else 0,
+                size if success else 0,
                 5200,
                 files,
                 round(disk, 4),
                 0,
-                json.dumps({"network": 1} if failed else {}, separators=(",", ":")),
+                json.dumps(reasons, separators=(",", ":")),
                 0,
             )
         )

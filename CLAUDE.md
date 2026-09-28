@@ -260,14 +260,17 @@ application, structured as follows:
   unchanged) marks the car-away state (unreachable/down host, timeouts, a
   dropped connection); `_do_sync` catches it specifically and logs one INFO
   line with no traceback, still recording the run failure. The last-sync card
-  shows "dashcam not reachable" when a stored run's only non-zero failure
-  reasons are `network`/`timeout` (stored runs list every reason, mostly 0).
+  shows "dashcam not reachable" for runs where `RunRow.unreachable` is true.
 - `scheduler.py` -- APScheduler `BackgroundScheduler` that fires the sync from
   `schedule.cron_expression` in `schedule.timezone`; honors `schedule.paused`.
 - `log_buffer.py` -- ring-buffer logging handler behind the `/logs` page; unlike
   the progress publisher it delivers every line (batches, not latest-wins).
 - `stats_store.py` -- SQLite store of one row per sync run, pruned by
-  `stats.retention_days`.
+  `stats.retention_days`. `RunRow.unreachable` is the single "car away" rule
+  (failed, and every non-zero failure reason is in `UNREACHABLE_REASONS` =
+  network/timeout), derived at read time so no migration is needed; the
+  last-sync card and `/api/stats/series` (`offline`, `reachable_runs`,
+  success rate over reachable runs, `null` when none) both use it.
 - `forecast.py` -- least-squares disk-usage projection for the stats page.
 - `viewer_index.py` -- enumerates downloaded recordings and computes journey
   chains of contiguous segments. `RecordingIndex` (shared per destination +

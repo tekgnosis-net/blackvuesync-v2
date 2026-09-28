@@ -11,6 +11,12 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  # pypi's index intermittently times out from github runners; longer reads
+  # and more retries keep installs from failing the job.
+  PIP_DEFAULT_TIMEOUT: '60'
+  PIP_RETRIES: '10'
+
 permissions:
   contents: read
 
