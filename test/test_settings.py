@@ -108,7 +108,7 @@ def test_metrics_defaults() -> None:
     assert s.pushgateway_url is None
     assert s.job == "blackvuesync"
     assert s.instance is None
-    assert s.state_file == "/config/metrics-state.json"
+    assert s.state_file == ""  # resolved next to settings.json
     assert MetricsSettings.TIER == "immediate"
 
 
@@ -774,7 +774,7 @@ def test_migrate_from_version_zero() -> None:
     """verifies migrate() is called and updates version for pre-v1 dicts."""
     raw = {"version": 0, "connection": {"address": "10.0.0.1"}}
     migrated = migrate(raw, from_version=0)
-    assert migrated["version"] == 1
+    assert migrated["version"] == SCHEMA_VERSION
     assert migrated["connection"]["address"] == "10.0.0.1"
 
 
@@ -797,7 +797,36 @@ def test_store_invokes_migrate_for_old_schema(tmp_path: Path) -> None:
 
     # should load without error via migrate()
     store = SettingsStore(settings_path)
-    assert store.get().version == 1
+    assert store.get().version == SCHEMA_VERSION
+
+
+def test_migrate_v1_resets_the_legacy_metrics_state_default() -> None:
+    """verifies v1's literal /config default becomes the relative default."""
+    raw: dict[str, Any] = {
+        "version": 1,
+        "metrics": {"state_file": "/config/metrics-state.json"},
+    }
+    migrated = migrate(raw, from_version=1)
+    assert migrated["version"] == 2
+    assert migrated["metrics"]["state_file"] == ""
+    assert raw["metrics"]["state_file"] == "/config/metrics-state.json"  # no mutation
+
+
+def test_migrate_v1_keeps_a_custom_metrics_state_file() -> None:
+    """verifies a user-chosen state file path survives the v2 migration."""
+    raw: dict[str, Any] = {
+        "version": 1,
+        "metrics": {"state_file": "/data/prom/state.json"},
+    }
+    assert migrate(raw, from_version=1)["metrics"]["state_file"] == (
+        "/data/prom/state.json"
+    )
+
+
+def test_store_path_property(tmp_path: Path) -> None:
+    """verifies the store exposes its settings file path."""
+    store = _make_store(tmp_path / "settings.json")
+    assert store.path == tmp_path / "settings.json"
 
 
 # ---------------------------------------------------------------------------

@@ -53,6 +53,7 @@ def _noop(
     *,
     job_id: str,
     stats_store: Any = None,  # noqa: ARG001
+    state_dir: Any = None,  # noqa: ARG001
 ) -> None:
     """no-op _do_sync stub; simulates sync.py owning begin_job/end_job."""
     pub.begin_job(0, job_id=job_id)
@@ -105,6 +106,7 @@ class TestTriggerSync:
             *,
             job_id: str,  # noqa: ARG001
             stats_store: Any = None,  # noqa: ARG001
+            state_dir: Any = None,  # noqa: ARG001
         ) -> None:
             _slow_noop(s, p, job_id=job_id, started=started, proceed=proceed)
 
@@ -131,6 +133,7 @@ class TestTriggerSync:
             *,
             job_id: str,  # noqa: ARG001
             stats_store: Any = None,  # noqa: ARG001
+            state_dir: Any = None,  # noqa: ARG001
         ) -> None:
             _slow_noop(s, p, job_id=job_id, started=started, proceed=proceed)
 
@@ -154,6 +157,7 @@ class TestTriggerSync:
             *,
             job_id: str,  # noqa: ARG001
             stats_store: Any = None,  # noqa: ARG001
+            state_dir: Any = None,  # noqa: ARG001
         ) -> None:
             p.begin_job(0, job_id=job_id)
             time.sleep(0.05)
@@ -184,6 +188,7 @@ class TestTriggerSync:
             *,
             job_id: str,  # noqa: ARG001
             stats_store: Any = None,  # noqa: ARG001
+            state_dir: Any = None,  # noqa: ARG001
         ) -> None:
             p.begin_job(0, job_id=job_id)
             thread_ref.append(threading.current_thread())
@@ -385,3 +390,91 @@ def test_do_sync_fails_without_calling_sync_when_address_is_empty(
     rows = store.query()
     assert len(rows) == 1
     assert rows[0].success == 0
+
+
+def _metrics_ns(**overrides: Any) -> Any:
+    import types
+
+    base = {"file": None, "pushgateway_url": None, "state_file": ""}
+    base.update(overrides)
+    return types.SimpleNamespace(metrics=types.SimpleNamespace(**base))
+
+
+def test_metrics_state_file_is_unused_while_metrics_are_disabled(
+    tmp_path: Path,
+) -> None:
+    import blackvuesync_v2.server.sync_runner as runner
+
+    settings = _metrics_ns(state_file=str(tmp_path / "custom.json"))
+    assert runner._metrics_state_file(settings, tmp_path) is None
+
+
+def test_metrics_state_file_defaults_next_to_settings(tmp_path: Path) -> None:
+    import blackvuesync_v2.server.sync_runner as runner
+
+    settings = _metrics_ns(file=str(tmp_path / "bvs.prom"))
+    assert runner._metrics_state_file(settings, tmp_path) == str(
+        tmp_path / "metrics-state.json"
+    )
+    assert runner._metrics_state_file(settings, None) is None
+
+
+def test_metrics_state_file_honours_a_custom_path(tmp_path: Path) -> None:
+    import blackvuesync_v2.server.sync_runner as runner
+
+    settings = _metrics_ns(
+        pushgateway_url="http://pgw:9091", state_file=str(tmp_path / "s.json")
+    )
+    assert runner._metrics_state_file(settings, tmp_path) == str(tmp_path / "s.json")
+
+
+def test_do_sync_writes_no_metrics_state_while_metrics_are_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import types
+
+    import blackvuesync_v2.server.sync_runner as runner
+    import blackvuesync_v2.sync as _sync
+    from blackvuesync_v2.server.progress import ProgressPublisher
+
+    destination = tmp_path / "rec"
+    destination.mkdir()
+    monkeypatch.setattr(_sync, "ensure_destination", lambda _d: None)
+    monkeypatch.setattr(_sync, "lock", lambda _d: 1)
+    monkeypatch.setattr(_sync, "unlock", lambda _fd: None)
+    monkeypatch.setattr(_sync, "clean_destination", lambda _d, _g: None)
+    monkeypatch.setattr(_sync, "sync", lambda *_a, **_k: None)
+    settings = types.SimpleNamespace(
+        connection=types.SimpleNamespace(address="1.2.3.4", timeout_seconds=10.0),
+        system=types.SimpleNamespace(destination=str(destination), dry_run=False),
+        sync=types.SimpleNamespace(
+            grouping="none",
+            priority="date",
+            include=(),
+            exclude=(),
+            retry_failed_after="1d",
+            skip_metadata=(),
+            affinity_key=None,
+        ),
+        retention=types.SimpleNamespace(keep="", max_used_disk_percent=90),
+        metrics=types.SimpleNamespace(
+            file=None,
+            pushgateway_url=None,
+            job="blackvuesync",
+            instance=None,
+            state_file="",
+        ),
+        stats=types.SimpleNamespace(retention_days=365),
+    )
+    import blackvuesync_v2.metrics as _metrics
+
+    calls: list[str] = []
+    monkeypatch.setattr(
+        _metrics, "load_metrics_state", lambda path: calls.append(f"load {path}")
+    )
+    monkeypatch.setattr(
+        _metrics, "save_metrics_state", lambda path, _m: calls.append(f"save {path}")
+    )
+    runner._do_sync(settings, ProgressPublisher(), job_id="j", state_dir=tmp_path)
+    assert calls == []
+    assert not (tmp_path / "metrics-state.json").exists()

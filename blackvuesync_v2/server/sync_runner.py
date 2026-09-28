@@ -8,6 +8,7 @@ import logging
 import threading
 import time
 import uuid
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from blackvuesync_v2.server.progress import ProgressPublisher
@@ -33,6 +34,7 @@ def trigger_sync(
     settings: Any,
     publisher: ProgressPublisher,
     stats_store: StatsStore | None = None,
+    state_dir: Path | None = None,
 ) -> dict[str, str]:
     """triggers a sync in a background daemon thread; returns a status dict.
 
@@ -42,7 +44,8 @@ def trigger_sync(
 
     the publisher is the sole source of sync state for api consumers; the
     sync thread calls publisher.end_job() in its finally block so the
-    snapshot transitions to complete/failed after the run.
+    snapshot transitions to complete/failed after the run. state_dir (the
+    settings file's directory) locates the default metrics state file.
     """
     global _current_thread, _current_job_id  # pylint: disable=global-statement
 
@@ -67,7 +70,13 @@ def trigger_sync(
     def _run() -> None:
         """runs sync under the lock; releases lock in finally."""
         try:
-            _do_sync(settings, publisher, job_id=job_id, stats_store=stats_store)
+            _do_sync(
+                settings,
+                publisher,
+                job_id=job_id,
+                stats_store=stats_store,
+                state_dir=state_dir,
+            )
         finally:
             with contextlib.suppress(Exception):
                 _sync_lock.release()
@@ -84,6 +93,7 @@ def _do_sync(  # pylint: disable=too-many-locals,too-many-statements
     *,
     job_id: str,
     stats_store: StatsStore | None = None,
+    state_dir: Path | None = None,
 ) -> None:
     """performs the actual sync on the daemon thread.
 
@@ -115,7 +125,7 @@ def _do_sync(  # pylint: disable=too-many-locals,too-many-statements
     # pylint: enable=import-outside-toplevel
 
     destination = settings.system.destination
-    state_file = settings.metrics.state_file
+    state_file = _metrics_state_file(settings, state_dir)
     lf_fd = None
     metrics: SyncMetrics | None = None
     sync_success = False
@@ -139,7 +149,9 @@ def _do_sync(  # pylint: disable=too-many-locals,too-many-statements
             dry_run=settings.system.dry_run,
             metrics_job=settings.metrics.job,
             metrics_instance=settings.metrics.instance or address,
-            last_successful_file_pull_timestamp_seconds=load_metrics_state(state_file),
+            last_successful_file_pull_timestamp_seconds=(
+                load_metrics_state(state_file) if state_file else None
+            ),
         )
 
         if not address:
@@ -185,8 +197,9 @@ def _do_sync(  # pylint: disable=too-many-locals,too-many-statements
             with contextlib.suppress(Exception):
                 metrics.failed_marker_files = count_failed_marker_files(destination)
             metrics.finalize(0 if sync_success else 1, sync_success)
-            with contextlib.suppress(Exception):
-                save_metrics_state(state_file, metrics)
+            if state_file:
+                with contextlib.suppress(Exception):
+                    save_metrics_state(state_file, metrics)
             with contextlib.suppress(Exception):
                 emit_metrics(
                     metrics,
@@ -202,6 +215,21 @@ def _do_sync(  # pylint: disable=too-many-locals,too-many-statements
                     logger.warning(
                         "sync_runner: failed to record run stats", exc_info=True
                     )
+
+
+def _metrics_state_file(settings: Any, state_dir: Path | None) -> str | None:
+    """returns where metrics state is kept, or None when it is not needed.
+
+    the state only feeds prometheus output, so nothing is read or written
+    while metrics are disabled. an empty state_file means metrics-state.json
+    next to settings.json.
+    """
+    metrics = settings.metrics
+    if not (metrics.file or metrics.pushgateway_url):
+        return None
+    if metrics.state_file:
+        return str(metrics.state_file)
+    return str(state_dir / "metrics-state.json") if state_dir else None
 
 
 def _apply_sync_settings(settings: Any) -> None:

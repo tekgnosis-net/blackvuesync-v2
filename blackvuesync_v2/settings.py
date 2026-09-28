@@ -23,7 +23,11 @@ from blackvuesync_v2.sync import calc_cutoff_date, parse_duration, parse_filter
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+# the metrics state file default before schema 2, when it was not yet
+# resolved relative to the settings file.
+_LEGACY_METRICS_STATE_FILE = "/config/metrics-state.json"
 
 PropagationTier = Literal["immediate", "next_tick", "restart"]
 
@@ -477,7 +481,9 @@ class MetricsSettings(_Section):
     pushgateway_url: str | None = None
     job: str = "blackvuesync"
     instance: str | None = None
-    state_file: str = "/config/metrics-state.json"
+    # empty means metrics-state.json next to settings.json; only used while
+    # metrics are enabled (file or pushgateway_url set).
+    state_file: str = ""
 
 
 @dataclass(frozen=True)
@@ -730,13 +736,19 @@ def _settings_from_dict(raw: dict[str, Any]) -> Settings:
 def migrate(raw: dict[str, Any], from_version: int) -> dict[str, Any]:
     """migrates a raw settings dict from an older schema version to current.
 
-    currently a pass-through since only schema version 1 exists. future
-    versions add migration steps here.
+    each step upgrades one version; steps run in order.
     """
+    raw = dict(raw)
     if from_version < 1:
-        # placeholder: no-op migration from pre-1 to 1
-        raw = dict(raw)
         raw["version"] = 1
+    if from_version < 2:
+        # 2: the metrics state file default became "next to settings.json";
+        # the old literal default is equivalent inside the docker image.
+        metrics = dict(raw.get("metrics") or {})
+        if metrics.get("state_file") == _LEGACY_METRICS_STATE_FILE:
+            metrics["state_file"] = ""
+            raw["metrics"] = metrics
+        raw["version"] = 2
     return raw
 
 
@@ -795,6 +807,11 @@ class SettingsStore:
         self._lock = threading.RLock()
         self._listeners: list[Callable[[Settings, Settings], None]] = []
         self._settings = self._load_or_bootstrap()
+
+    @property
+    def path(self) -> Path:
+        """returns the settings file path."""
+        return self._path
 
     def get(self) -> Settings:
         """returns the current settings snapshot."""
@@ -954,7 +971,7 @@ class SettingsStore:
             pushgateway_url=_env("METRICS_PUSHGATEWAY_URL", "") or None,
             job=_env("METRICS_JOB", "blackvuesync"),
             instance=_env("METRICS_INSTANCE", "") or None,
-            state_file=_env("METRICS_STATE_FILE", "/config/metrics-state.json"),
+            state_file=_env("METRICS_STATE_FILE", ""),
         )
 
         stats = StatsSettings(

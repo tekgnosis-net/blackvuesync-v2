@@ -165,3 +165,71 @@ class TestLastRunCard:
         client, _ = logged_in_client
         resp = client.get("/hx/sync/last-run-card")
         assert "text/html" in resp.content_type
+
+
+def _row(**overrides: Any) -> Any:
+    import time
+
+    from blackvuesync_v2.server.stats_store import RunRow
+
+    base: dict[str, Any] = {
+        "ts_seconds": time.time() - 600,
+        "success": 1,
+        "exit_code": 0,
+        "duration_seconds": 42.0,
+        "files": 12,
+        "bytes": 5_000_000,
+        "recordings_seen": 100,
+        "recordings_selected": 3,
+        "disk_used_ratio": 0.5,
+        "failed_markers": 0,
+        "failures": {},
+        "dry_run": 0,
+    }
+    base.update(overrides)
+    return RunRow(**base)
+
+
+class TestLastRunCardHistory:
+    """the card falls back to the stats store once the publisher is idle."""
+
+    def test_shows_latest_stored_run_when_idle(self, logged_in_client: Any) -> None:
+        client, _ = logged_in_client
+        store = client.application.stats_store
+        with patch.object(store, "latest", return_value=_row()):
+            body = client.get("/hx/sync/last-run-card").data
+        assert b"10 min ago" in body
+        assert b"12 files" in body
+        assert b"badge-complete" in body
+        assert b"no completed sync recorded" not in body
+
+    def test_labels_failed_and_dry_run_runs(self, logged_in_client: Any) -> None:
+        client, _ = logged_in_client
+        store = client.application.stats_store
+        row = _row(success=0, dry_run=1, failures={"network": 2})
+        with patch.object(store, "latest", return_value=row):
+            body = client.get("/hx/sync/last-run-card").data
+        assert b"badge-failed" in body
+        assert b"dry run" in body
+        assert b"2 failed" in body
+
+    def test_live_job_wins_over_stored_history(self, logged_in_client: Any) -> None:
+        client, pub = logged_in_client
+        pub.begin_job(2)
+        store = client.application.stats_store
+        with patch.object(store, "latest", return_value=_row()) as latest:
+            body = client.get("/hx/sync/last-run-card").data
+        assert b"badge-running" in body
+        assert b"min ago" not in body
+        latest.assert_not_called()
+
+
+def test_ago_wording_boundaries() -> None:
+    from blackvuesync_v2.server.routes.hx_sync import _ago
+
+    assert _ago(59) == "just now"
+    assert _ago(60) == "1 min ago"
+    assert _ago(3599) == "59 min ago"
+    assert _ago(3600) == "1 h ago"
+    assert _ago(86399) == "23 h ago"
+    assert _ago(86400) == "1 d ago"

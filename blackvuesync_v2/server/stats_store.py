@@ -150,6 +150,14 @@ class StatsStore:
             cursor = conn.execute(sql, params)
             return [self._to_row(r) for r in cursor.fetchall()]
 
+    def latest(self) -> RunRow | None:
+        """returns the most recent run, or None when none is recorded."""
+        with self._borrow() as conn:
+            record = conn.execute(
+                "SELECT * FROM runs ORDER BY ts_seconds DESC LIMIT 1"
+            ).fetchone()
+        return self._to_row(record) if record else None
+
     def prune(self, retention_days: int) -> int:
         """deletes rows older than retention_days; no-op when retention_days <= 0.
 

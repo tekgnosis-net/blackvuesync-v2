@@ -159,6 +159,7 @@ class TestTriggerNow:
                 *,
                 job_id: str,
                 stats_store: Any = None,  # noqa: ARG001
+                state_dir: Any = None,  # noqa: ARG001
             ) -> None:
                 p.begin_job(0, job_id=job_id)
                 p.end_job(success=True)
@@ -187,6 +188,7 @@ class TestTriggerNow:
             *,
             job_id: str,
             stats_store: Any = None,  # noqa: ARG001
+            state_dir: Any = None,  # noqa: ARG001
         ) -> None:
             p.begin_job(0, job_id=job_id)
             started.set()

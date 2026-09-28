@@ -151,6 +151,12 @@ clear message. The store generates `auth.session_secret` when the file lacks
 one and refuses to save an empty secret; `password_hash` / `session_secret`
 cannot be set through `PATCH /api/settings/auth`.
 
+Settings schema version is 2: the v1 -> v2 migration turns the literal
+`/config/metrics-state.json` default into `""`, which `sync_runner` resolves to
+`metrics-state.json` next to `settings.json` (callers pass `store.path.parent`
+as `state_dir`); the state file is only read or written while metrics are
+enabled.
+
 Serve mode also keeps these files next to `settings.json`: `stats.db` (SQLite
 per-run metrics, see `server/stats_store.py`) and `logs/blackvuesync.log`
 (rotating, sized by `logging.file_max_bytes` / `file_backup_count`).
@@ -474,10 +480,24 @@ version).
 
 ### Versioning
 
-Semantic versioning, first standalone release 3.0.0. The version lives in
-`blackvuesync_v2/__init__.py` and `pyproject.toml` (keep them equal). Pushing
-a `vX.Y.Z` tag publishes Docker tags `X.Y.Z`, `X.Y` and `X`
-(`docker-build.yml`); `latest` follows `main`. PyPI publishing (`ci.yml`
+Semantic versioning (plain `MAJOR.MINOR.PATCH`, no pre-release suffixes),
+first standalone release 3.0.0. The version lives in
+`blackvuesync_v2/__init__.py` and `pyproject.toml`; `test_release_script.py`
+fails if they differ or the CHANGELOG lacks a section for it. Releases go
+through `scripts/release.py` (a script, not release-please, so no PAT secret
+is needed):
+
+1. `python scripts/release.py prepare X.Y.Z` on an up-to-date `main` bumps
+   both files, turns `## Unreleased` into `## X.Y.Z - date`, commits on
+   `release/vX.Y.Z` and opens a PR.
+2. After the PR merges, `python scripts/release.py tag X.Y.Z` verifies
+   `origin/main` and pushes an annotated tag with the maintainer's own
+   credentials (a `GITHUB_TOKEN`-created tag would not trigger workflows).
+3. The tag runs `release.yml` (GitHub release from the CHANGELOG section via
+   `release.py notes`) and `docker-build.yml` (images `X.Y.Z`, `X.Y`, `X`).
+
+Collect changes under `## Unreleased` at the top of the CHANGELOG between
+releases. `latest` follows `main`. PyPI publishing (`ci.yml`
 `publish` job) only runs when the repository variable `PYPI_PUBLISH` is
 `true` and a PyPI trusted publisher exists for `blackvuesync-v2`.
 

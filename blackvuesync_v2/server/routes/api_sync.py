@@ -107,7 +107,7 @@ def trigger_now() -> Response:
     settings = settings_store.get()
 
     stats_store = getattr(current_app, "stats_store", None)
-    result = trigger_sync(settings, pub, stats_store)
+    result = trigger_sync(settings, pub, stats_store, settings_store.path.parent)
 
     if result["status"] == "already_running":
         body = json.dumps(

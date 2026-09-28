@@ -14,6 +14,7 @@ from blackvuesync_v2.server.routes.api_health import _compute_storage
 from blackvuesync_v2.server.routes.api_recordings import _DEFAULT_LIMIT, _compute_recent
 from blackvuesync_v2.server.routes.api_settings import _settings_to_dict
 from blackvuesync_v2.server.routes.hx_dashboard import _next_human
+from blackvuesync_v2.server.routes.hx_sync import last_run_context
 from blackvuesync_v2.server.settings_form import build_sections
 
 bp = Blueprint("ui_bp", __name__)
@@ -41,7 +42,7 @@ def dashboard() -> str:
     sync_state = "running" if snap.state == "running" else "idle"
 
     last_run_html = render_template(
-        "_partials/last_run_card.html", snap=publisher.snapshot()
+        "_partials/last_run_card.html", **last_run_context()
     )
     next_scheduled_html = render_template(
         "_partials/next_scheduled_card.html",
