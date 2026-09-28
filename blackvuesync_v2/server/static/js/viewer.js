@@ -277,11 +277,25 @@ const viewer = {
     });
   },
 
+  setPlaying(button, playing) {
+    button.dataset.playing = String(playing);
+    const label = playing ? "Pause" : "Play";
+    button.setAttribute("aria-label", label);
+    button.title = label;
+  },
+
   bindTransport() {
-    document.getElementById("viewer-play").addEventListener("click", () => {
+    const play = document.getElementById("viewer-play");
+    play.addEventListener("click", () => {
       if (this.front.paused) this.front.play().catch(() => { /* ignore */ });
       else this.front.pause();
     });
+    // the icon follows the video itself, so auto-advance and the end of a
+    // journey keep it right, not only clicks
+    const showPlaying = () => this.setPlaying(play, !this.front.paused);
+    for (const event of ["play", "playing", "pause", "ended", "emptied"]) {
+      this.front.addEventListener(event, showPlaying);
+    }
     document.getElementById("viewer-seek").addEventListener("input", (ev) => {
       const frac = Number(ev.currentTarget.value) / 1000;
       if (this.front.duration) this.front.currentTime = frac * this.front.duration;

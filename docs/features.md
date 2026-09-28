@@ -59,7 +59,9 @@ restart are marked. See [Configuration](guide/configuration.md).
 
 ## Dark mode
 
-The interface follows the system's light or dark appearance.
+The interface follows the system's light or dark appearance, including
+browser-drawn controls such as buttons, sliders and scroll bars. Text meets the
+WCAG AA contrast ratio (4.5:1) in both modes.
 
 ![Dashboard in dark mode](assets/screenshots/dashboard-dark.png)
 

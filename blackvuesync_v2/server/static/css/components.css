@@ -28,12 +28,12 @@
 }
 
 .button-primary {
-  background-color: var(--color-accent);
+  background-color: var(--color-accent-fill);
   color: #ffffff;
 }
 
 .button-primary:hover {
-  background-color: var(--color-accent-hover);
+  background-color: var(--color-accent-fill-hover);
 }
 
 .button-secondary {
@@ -85,19 +85,19 @@
 
 .alert-info {
   background-color: color-mix(in srgb, var(--color-info) 15%, transparent);
-  color: var(--color-info);
+  color: var(--color-info-text);
   border: 1px solid color-mix(in srgb, var(--color-info) 30%, transparent);
 }
 
 .alert-warning {
   background-color: color-mix(in srgb, var(--color-warning) 12%, transparent);
-  color: var(--color-warning);
+  color: var(--color-warning-text);
   border: 1px solid color-mix(in srgb, var(--color-warning) 25%, transparent);
 }
 
 .alert-error {
   background-color: color-mix(in srgb, var(--color-error) 10%, transparent);
-  color: var(--color-error);
+  color: var(--color-error-text);
   border: 1px solid color-mix(in srgb, var(--color-error) 20%, transparent);
 }
 
