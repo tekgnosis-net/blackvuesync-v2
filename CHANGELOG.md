@@ -14,6 +14,15 @@ Colomba; their numbers refer to upstream pull requests.
 
 ## Unreleased
 
+### Fixed
+
+* When the dashcam cannot be reached (car away, dashcam off, or the connection
+  dropping mid-transfer), the web service logs one line instead of a full
+  error traceback on every scheduled run, and the **Last sync** card shows
+  **dashcam not reachable** instead of **failed**. Metrics and run history
+  still record the attempt with its `network` / `timeout` reason. Other
+  errors, including a refused connection, are reported as before.
+
 ### Changed
 
 * The Docker image is based on Alpine 3.24 and runs on **Python 3.14**

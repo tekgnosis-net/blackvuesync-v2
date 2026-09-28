@@ -206,7 +206,7 @@ class TestLastRunCardHistory:
     def test_labels_failed_and_dry_run_runs(self, logged_in_client: Any) -> None:
         client, _ = logged_in_client
         store = client.application.stats_store
-        row = _row(success=0, dry_run=1, failures={"network": 2})
+        row = _row(success=0, dry_run=1, failures={"http": 2})
         with patch.object(store, "latest", return_value=row):
             body = client.get("/hx/sync/last-run-card").data
         assert b"badge-failed" in body
@@ -233,3 +233,37 @@ def test_ago_wording_boundaries() -> None:
     assert _ago(3600) == "1 h ago"
     assert _ago(86399) == "23 h ago"
     assert _ago(86400) == "1 d ago"
+
+
+class TestLastRunCardUnreachable:
+    """a run that could not reach the dashcam reads as an expected state."""
+
+    def test_network_or_timeout_failure_shows_not_reachable(
+        self, logged_in_client: Any
+    ) -> None:
+        client, _ = logged_in_client
+        store = client.application.stats_store
+        # the shape stored runs really have: every reason, most of them zero
+        zeros = {"network": 0, "timeout": 0, "http": 0, "disk": 0, "unknown": 0}
+        for reason in ("network", "timeout"):
+            row = _row(success=0, files=0, bytes=0, failures={**zeros, reason: 1})
+            with patch.object(store, "latest", return_value=row):
+                body = client.get("/hx/sync/last-run-card").data
+            assert b"dashcam not reachable" in body
+            assert b"badge-offline" in body
+            assert b"badge-failed" not in body
+            assert b"1 failed" not in body
+
+    def test_other_failures_stay_failed(self, logged_in_client: Any) -> None:
+        client, _ = logged_in_client
+        store = client.application.stats_store
+        for failures in (
+            {"disk": 1, "network": 0},
+            {"network": 1, "disk": 1},
+            {"network": 0, "timeout": 0},
+        ):
+            row = _row(success=0, failures=failures)
+            with patch.object(store, "latest", return_value=row):
+                body = client.get("/hx/sync/last-run-card").data
+            assert b"badge-failed" in body
+            assert b"not reachable" not in body

@@ -40,10 +40,18 @@ def _ago(seconds: float) -> str:
     return f"{int(seconds // 86400)} d ago"
 
 
+# run-failure reasons that mean the dashcam could not be reached (car away).
+_UNREACHABLE_REASONS = frozenset({"network", "timeout"})
+
+
 def _run_view(row: RunRow, now: float) -> dict[str, Any]:
     """shapes a stored run for the card; times use the process timezone (TZ)."""
     started = datetime.datetime.fromtimestamp(row.ts_seconds).astimezone()
+    # stored runs list every reason with its count, most of them zero
+    reasons = {reason for reason, count in row.failures.items() if count}
+    unreachable = not row.success and bool(reasons) and reasons <= _UNREACHABLE_REASONS
     return {
+        "unreachable": unreachable,
         "ago": _ago(max(0.0, now - row.ts_seconds)),
         "when": started.strftime("%a %d %b %H:%M %Z").strip(),
         "success": bool(row.success),

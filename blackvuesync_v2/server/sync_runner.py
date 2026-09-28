@@ -9,7 +9,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from blackvuesync_v2.server.progress import ProgressPublisher
 
@@ -115,6 +115,7 @@ def _do_sync(  # pylint: disable=too-many-locals,too-many-statements
         save_metrics_state,
     )
     from blackvuesync_v2.sync import (
+        DashcamUnavailableError,
         clean_destination,
         ensure_destination,
         lock,
@@ -179,11 +180,17 @@ def _do_sync(  # pylint: disable=too-many-locals,too-many-statements
             sync_success = True
         finally:
             clean_destination(destination, grouping)
+    except DashcamUnavailableError as exc:
+        # the car is away or the dashcam is off: expected, so one line, no trace
+        logger.info(
+            "dashcam %s not reachable; next attempt at the scheduled time (%s)",
+            settings.connection.address,
+            exc,
+        )
+        _record_failure(metrics, exc, classify_run_failure)
     except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.exception("sync_runner: sync failed")
-        if metrics is not None:
-            with contextlib.suppress(Exception):
-                metrics.record_run_failure(classify_run_failure(exc))
+        _record_failure(metrics, exc, classify_run_failure)
     finally:
         if lf_fd is not None:
             with contextlib.suppress(Exception):
@@ -215,6 +222,15 @@ def _do_sync(  # pylint: disable=too-many-locals,too-many-statements
                     logger.warning(
                         "sync_runner: failed to record run stats", exc_info=True
                     )
+
+
+def _record_failure(
+    metrics: Any, exc: BaseException, classify: Callable[[BaseException], str]
+) -> None:
+    """records a run-level failure reason on the run's metrics, if any."""
+    if metrics is not None:
+        with contextlib.suppress(Exception):
+            metrics.record_run_failure(classify(exc))
 
 
 def _metrics_state_file(settings: Any, state_dir: Path | None) -> str | None:
