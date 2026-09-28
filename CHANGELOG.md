@@ -41,10 +41,20 @@ upgrade.
   screenshots, the HTTP API reference and these release notes.
 * `scripts/screenshots.py` regenerates the documentation screenshots from a
   synthetic demo library.
-* GitHub releases and semantic-version Docker tags.
+* GitHub releases and semantic-version Docker tags. `scripts/release.py` prepares
+  a release pull request and pushes the tag; `release.yml` publishes the release.
 
 ### Fixed
 
+* The dashboard's **Last sync** card showed "no completed sync recorded" except
+  for ten seconds after each run. It now shows the most recent run from the run
+  history: how long ago, when (in the container's `TZ`), outcome, files and
+  size.
+* The metrics state file defaulted to `/config/metrics-state.json` even outside
+  Docker and was written while metrics were disabled. It now defaults to
+  `metrics-state.json` next to `settings.json` and is only used while metrics
+  are enabled. Existing settings files are migrated (schema version 2); inside
+  the Docker image the file stays in the same place.
 * The web service now applies `retention.keep`, `sync.retry_failed_after`, `sync.skip_metadata` and `sync.affinity_key`; previously scheduled syncs ignored them, so old recordings were never deleted. An empty `keep` keeps recordings forever.
 * Live progress and log streaming work under waitress; they returned 500 in production.
 * A download cut short by the dashcam is kept as a partial and resumed, instead of being saved as complete.

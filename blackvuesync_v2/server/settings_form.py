@@ -128,7 +128,13 @@ SECTION_FIELD_SPECS: dict[str, tuple[FieldSpec, ...]] = {
         FieldSpec("pushgateway_url", "Pushgateway URL", "text", "text"),
         FieldSpec("job", "Job name", "text", "text"),
         FieldSpec("instance", "Instance", "text", "text"),
-        FieldSpec("state_file", "State file", "text", "text"),
+        FieldSpec(
+            "state_file",
+            "State file",
+            "text",
+            "text",
+            help="blank = metrics-state.json next to settings.json",
+        ),
     ),
     "stats": (
         FieldSpec(

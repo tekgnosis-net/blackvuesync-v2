@@ -206,10 +206,16 @@ class TestScheduledRun:
         ) as mock_trigger:
             _scheduled_run(store, publisher)
             mock_trigger.assert_called_once()
-            settings_arg, publisher_arg, stats_store_arg = mock_trigger.call_args.args
+            (
+                settings_arg,
+                publisher_arg,
+                stats_store_arg,
+                state_dir_arg,
+            ) = mock_trigger.call_args.args
             assert settings_arg.connection.address == "192.168.0.1"
             assert publisher_arg is publisher
             assert stats_store_arg is None
+            assert state_dir_arg == settings_path.parent
 
     def test_propagates_exception_from_trigger_sync(self, settings_path: Path) -> None:
         """exceptions from trigger_sync propagate so APScheduler logs them and

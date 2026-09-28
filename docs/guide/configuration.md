@@ -96,7 +96,7 @@ would delete.
 | `pushgateway_url` | *(empty)* | Push metrics to this Pushgateway. |
 | `job` | `blackvuesync` | Pushgateway job label. |
 | `instance` | *(dashcam address)* | Pushgateway instance label. |
-| `state_file` | `/config/metrics-state.json` | Remembers the last successful download across restarts. |
+| `state_file` | *(empty)* | Where the last successful download time is remembered across restarts. Empty means `metrics-state.json` next to `settings.json`. Only used while metrics are enabled. |
 
 ### Stats
 

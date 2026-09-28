@@ -1,0 +1,38 @@
+# publishes a github release when a vX.Y.Z tag is pushed (scripts/release.py
+# tag). the job fails when the tag disagrees with the version in the code or
+# the changelog has no section for it. docker-build.yml publishes the images
+# for the same tag.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Check version and extract release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: python scripts/release.py notes "${TAG#v}" > release-notes.md
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: >-
+          gh release create "$TAG" --verify-tag --title "BlackVue Sync v2 ${TAG#v}" --notes-file release-notes.md

@@ -78,7 +78,7 @@ def _scheduled_run(
     if settings.schedule.paused:
         logger.info("scheduled sync skipped: schedule is paused")
         return
-    result = trigger_sync(settings, publisher, stats_store)
+    result = trigger_sync(settings, publisher, stats_store, store.path.parent)
     if result["status"] == "already_running":
         logger.info(
             "scheduled sync skipped: another sync is already running (job_id=%s)",

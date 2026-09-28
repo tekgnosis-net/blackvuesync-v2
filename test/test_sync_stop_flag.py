@@ -84,6 +84,7 @@ class TestTriggerSyncClearsStopFlag:
             *,
             job_id: str,
             stats_store: object = None,  # noqa: ARG001
+            state_dir: object = None,  # noqa: ARG001
         ) -> None:
             """captures the flag value the thread sees; signals via Event."""
             observed.append(is_stop_requested())

@@ -109,3 +109,18 @@ def test_in_memory_store_is_usable() -> None:
     assert len(rows) == 1
     assert rows[0].files == 4
     assert store.prune(retention_days=0) == 0
+
+
+def test_latest_returns_newest_run_or_none(tmp_path: Path) -> None:
+    import sqlite3
+
+    store = StatsStore(str(tmp_path / "stats.db"))
+    assert store.latest() is None
+    with sqlite3.connect(tmp_path / "stats.db") as conn:
+        conn.executemany(
+            "INSERT INTO runs (ts_seconds, success, files, bytes) VALUES (?,?,?,?)",
+            [(100.0, 1, 1, 10), (300.0, 0, 3, 30), (200.0, 1, 2, 20)],
+        )
+    latest = store.latest()
+    assert latest is not None
+    assert (latest.ts_seconds, latest.success, latest.files) == (300.0, 0, 3)

@@ -260,8 +260,10 @@ progress bar, and current file information.
 
 ### `GET /hx/sync/last-run-card`
 
-Returns the `last-run-card` HTML partial showing the most recently completed
-sync run (files synced, bytes downloaded, completion state).
+Returns the `last-run-card` HTML partial. While a job is running, or within
+10 seconds of it ending, it shows the live progress snapshot. Otherwise it
+shows the most recent run recorded in the stats store: how long ago, the start
+time in the server's timezone (`TZ`), the outcome, files and bytes.
 
 ---
 

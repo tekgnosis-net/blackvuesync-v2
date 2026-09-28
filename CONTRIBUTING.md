@@ -66,3 +66,20 @@ regenerate the screenshots from synthetic demo data (requires ffmpeg):
 ```bash
 python scripts/screenshots.py
 ```
+
+## Releasing
+
+Versions follow [semantic versioning](https://semver.org/). Between releases,
+changes are listed under `## Unreleased` at the top of `CHANGELOG.md`. To
+release, from an up-to-date `main`:
+
+```bash
+python scripts/release.py prepare 3.1.0   # bumps the version, dates the changelog, opens a PR
+# review and merge the release PR, then:
+git pull
+python scripts/release.py tag 3.1.0       # pushes the v3.1.0 tag
+```
+
+The tag publishes the GitHub release and the Docker images `3.1.0`, `3.1` and
+`3`. Regenerate the screenshots in the release PR if the footer version matters
+for the docs.
