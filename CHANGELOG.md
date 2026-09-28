@@ -12,6 +12,16 @@ repository. Versions 2.2.0 and earlier are the upstream
 [BlackVue Sync](https://github.com/acolomba/blackvuesync) by Alessandro
 Colomba; their numbers refer to upstream pull requests.
 
+## Unreleased
+
+### Fixed
+
+* With authentication turned off (`auth.mode` `none`), the header had no
+  Dashboard / Settings / Logs / Stats / Viewer links, so pages could only be
+  reached by typing their address. The links now show in every auth mode.
+  **Sign out** only appears in `login` mode: `none` has no session to end, and
+  in `proxy` mode the reverse proxy owns the sign-in.
+
 ## 3.1.0 - 2026-09-29
 
 ### Added

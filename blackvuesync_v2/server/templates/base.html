@@ -11,14 +11,14 @@
   {% block extra_css %}{% endblock %}
 </head>
 <body data-state="{% block data_state %}idle{% endblock %}">
-  {#- login_required sets g.current_user (also in "none" auth mode), so the
-      login and first-run pages do not show the version #}
-  {% set show_version = g.current_user is defined %}
+  {#- login_required sets g.current_user in every auth mode ("anonymous" in
+      "none"), so the login and first-run pages show neither nav nor version #}
+  {% set in_app = g.current_user is defined %}
   <header class="site-header">
     <div class="header-inner">
       <a class="site-title" href="{{ url_for('ui_bp.dashboard') }}">BlackVue Sync v2</a>
-      {% if show_version %}<span class="site-version">ver: {{ app_version }}</span>{% endif %}
-      {% if g.current_user is defined and g.current_user != 'anonymous' %}
+      {% if in_app %}
+      <span class="site-version">ver: {{ app_version }}</span>
       <nav class="site-nav">
         <a href="{{ url_for('ui_bp.dashboard') }}" class="nav-link {% if page == 'dashboard' %}active{% endif %}">Dashboard</a>
         <a href="{{ url_for('ui_bp.settings') }}" class="nav-link {% if page == 'settings' %}active{% endif %}">Settings</a>
@@ -26,10 +26,13 @@
         <a href="{{ url_for('ui_bp.stats') }}" class="nav-link {% if page == 'stats' %}active{% endif %}">Stats</a>
         <a href="{{ url_for('ui_bp.viewer') }}" class="nav-link {% if page == 'viewer' %}active{% endif %}">Viewer</a>
       </nav>
+      {#- only "login" mode has a session of ours to end #}
+      {% if g.get('auth_mode') == 'login' %}
       <form method="post" action="{{ url_for('auth_bp.logout') }}" class="logout-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="button button-secondary button-sm">Sign out</button>
       </form>
+      {% endif %}
       {% endif %}
     </div>
   </header>
@@ -40,7 +43,7 @@
 
   <footer class="site-footer">
     <div class="footer-inner">
-      <span class="footer-text">BlackVue Sync v2{% if show_version %} {{ app_version }}{% endif %}</span>
+      <span class="footer-text">BlackVue Sync v2{% if in_app %} {{ app_version }}{% endif %}</span>
     </div>
   </footer>
 

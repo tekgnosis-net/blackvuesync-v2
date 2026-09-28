@@ -225,7 +225,8 @@ def login_required(view: _ViewFunc) -> _ViewFunc:
     """decorator enforcing authentication per the current auth.mode setting.
 
     reads auth.mode fresh on every request so a settings change takes
-    effect without restarting the server.
+    effect without restarting the server. the mode is kept in g.auth_mode
+    for display (base.html offers sign-out only in "login" mode).
 
     - "none": passes through; sets g.current_user = "anonymous".
     - "proxy": reads the proxy_user_header when the socket peer is a trusted
@@ -239,6 +240,7 @@ def login_required(view: _ViewFunc) -> _ViewFunc:
         settings = current_app.settings_store.get()  # type: ignore[attr-defined]
         auth = settings.auth
         mode = auth.mode
+        g.auth_mode = mode
 
         if mode == "none":
             g.current_user = "anonymous"
