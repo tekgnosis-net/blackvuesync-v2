@@ -12,7 +12,7 @@ repository. Versions 2.2.0 and earlier are the upstream
 [BlackVue Sync](https://github.com/acolomba/blackvuesync) by Alessandro
 Colomba; their numbers refer to upstream pull requests.
 
-## 3.0.0 - unreleased
+## 3.0.0 - 2026-09-28
 
 First release of **BlackVue Sync v2** as a standalone project. See
 [Upgrading to 3.0.0](https://tekgnosis-net.github.io/blackvuesync-v2/guide/upgrading/#upgrading-to-300) before you
