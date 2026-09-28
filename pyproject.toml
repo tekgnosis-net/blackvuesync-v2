@@ -1,6 +1,6 @@
 [project]
 name = "blackvuesync-v2"
-version = "2.8.0a0"
+version = "3.0.0"
 description = "Synchronize recordings from BlackVue dashcams to a local directory"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -52,6 +52,10 @@ dev = [
     "ruff~=0.9",
     "testcontainers~=4.13",
     "tzlocal~=5.2",
+]
+# documentation site (mkdocs build --strict)
+docs = [
+    "mkdocs-material~=9.7",
 ]
 
 [project.urls]

@@ -1,6 +1,6 @@
 # HTTP API Reference
 
-This document describes the HTTP endpoints exposed by `blackvuesync serve`
+This document describes the HTTP endpoints exposed by `blackvuesync-v2 serve`
 (and the Docker container on port 8080).
 
 ## Conventions

@@ -14,12 +14,13 @@ RUN uv venv /opt/venv \
 # final stage: starts clean and copies only the populated venv from the builder.
 FROM alpine:3.23.4
 
-LABEL org.opencontainers.image.title="BlackVue Sync"
-LABEL org.opencontainers.image.description="Hands-off synchronization of recordings from a BlackVue dashcam with a local directory over a LAN"
+LABEL org.opencontainers.image.title="BlackVue Sync v2"
+LABEL org.opencontainers.image.description="Hands-off synchronization of BlackVue dashcam recordings with a web dashboard, viewer and statistics"
 LABEL org.opencontainers.image.url="https://github.com/tekgnosis-net/blackvuesync-v2"
 LABEL org.opencontainers.image.source="https://github.com/tekgnosis-net/blackvuesync-v2"
 LABEL org.opencontainers.image.licenses="MIT"
-LABEL org.opencontainers.image.authors="Alessandro Colomba"
+LABEL org.opencontainers.image.authors="Alessandro Colomba (original BlackVue Sync), tekgnosis-net (v2)"
+LABEL org.opencontainers.image.documentation="https://tekgnosis-net.github.io/blackvuesync-v2/"
 
 RUN apk add --update bash python3 shadow su-exec tzdata \
     && rm -rf /var/cache/apk/* \

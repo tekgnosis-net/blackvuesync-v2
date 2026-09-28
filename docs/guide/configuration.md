@@ -27,8 +27,8 @@ The web service keeps all of its configuration in one file,
 | schedule, sync, retention, stats | on the next sync run |
 | connection, web, system | after a restart |
 
-Restart with `docker compose restart blackvuesync` (or `docker restart
-blackvuesync`).
+Restart with `docker compose restart blackvuesync-v2` (or `docker restart
+blackvuesync-v2`).
 
 ## Settings reference
 

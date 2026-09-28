@@ -51,8 +51,8 @@ If this fails, fix connectivity first; BlackVue Sync cannot work around it.
 1. Create a directory for the service and two data directories:
 
    ```sh
-   mkdir -p ~/blackvuesync/config /data/dashcam
-   cd ~/blackvuesync
+   mkdir -p ~/blackvuesync-v2/config /data/dashcam
+   cd ~/blackvuesync-v2
    ```
 
 2. Find the user and group IDs that should own the recordings:
@@ -66,9 +66,9 @@ If this fails, fix connectivity first; BlackVue Sync cannot work around it.
 
    ```yaml
    services:
-     blackvuesync:
-       image: ghcr.io/tekgnosis-net/blackvuesync:latest
-       container_name: blackvuesync
+     blackvuesync-v2:
+       image: ghcr.io/tekgnosis-net/blackvuesync-v2:3
+       container_name: blackvuesync-v2
        restart: unless-stopped
        ports:
          - "8080:8080"
@@ -101,16 +101,16 @@ If this fails, fix connectivity first; BlackVue Sync cannot work around it.
 ## Option 2: `docker run`
 
 ```sh
-docker run -d --name blackvuesync --restart unless-stopped \
+docker run -d --name blackvuesync-v2 --restart unless-stopped \
     -p 8080:8080 \
     -v /data/dashcam:/recordings \
-    -v /data/blackvuesync-config:/config \
+    -v /data/blackvuesync-v2-config:/config \
     -e ADDRESS=192.168.1.50 \
     -e PUID=$(id -u) -e PGID=$(id -g) \
     -e TZ=America/New_York \
     -e BLACKVUESYNC_TIMEZONE=America/New_York \
     -e KEEP=2w \
-    ghcr.io/tekgnosis-net/blackvuesync:latest
+    ghcr.io/tekgnosis-net/blackvuesync-v2:3
 ```
 
 Always mount `/config`. Without it the settings file, password, statistics
@@ -121,28 +121,29 @@ and logs are lost when the container is recreated.
 Requires Python 3.9 or newer.
 
 ```sh
-python3 -m venv ~/blackvuesync-venv
-~/blackvuesync-venv/bin/pip install "git+https://github.com/tekgnosis-net/blackvuesync"
+python3 -m venv ~/blackvuesync-v2-venv
+~/blackvuesync-v2-venv/bin/pip install "git+https://github.com/tekgnosis-net/blackvuesync-v2@v3.0.0"
 ```
 
-Install from the Git URL. The `blackvuesync` package on PyPI is the upstream
-project (version 2.2.0) and has no `serve` command.
+Replace `v3.0.0` with the release you want (see the
+[release notes](../release-notes.md)). The command is `blackvuesync-v2`. The
+`blackvuesync` package on PyPI is the original project, which has no web
+service; the two can be installed side by side.
 
 Run the web service with a config directory of your choice:
 
 ```sh
 ADDRESS=192.168.1.50 \
-~/blackvuesync-venv/bin/blackvuesync serve \
-    --config-path ~/blackvuesync/config/settings.json
+~/blackvuesync-v2-venv/bin/blackvuesync-v2 serve \
+    --config-path ~/blackvuesync-v2/config/settings.json
 ```
 
 Then set **System → Destination** in the web UI to your recordings directory.
 To keep it running, wrap it in a systemd unit or similar.
 
 If you only want the command-line sync, without the web service, see
-[Manual Usage](../../README.md#manual-usage) and
-[Unattended Usage](../../README.md#unattended-usage) in the README. That mode
-has no web UI and uses command-line flags instead of `settings.json`.
+[Command line](cli.md). That mode has no web UI and uses command-line options
+instead of `settings.json`.
 
 ## First run
 
@@ -245,5 +246,5 @@ Both need no login.
 
 Prometheus metrics can be written to a file for the node_exporter textfile
 collector or pushed to a Pushgateway. Set them under **Settings → Metrics**.
-See [Prometheus metrics](../../README.md#prometheus-metrics) in the README for
-the metric names and example alerts.
+See [Prometheus metrics](cli.md#prometheus-metrics) for the metric names and
+example alerts.

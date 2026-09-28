@@ -2,7 +2,7 @@
 
 ## General
 
-This project welcomes new [issues](https://github.com/tekgnosis-net/blackvuesync/issues) and [pull requests](https://github.com/tekgnosis-net/blackvuesync/pulls).
+This project welcomes new [issues](https://github.com/tekgnosis-net/blackvuesync-v2/issues) and [pull requests](https://github.com/tekgnosis-net/blackvuesync-v2/pulls).
 
 ## Responsible AI contributions
 
@@ -17,8 +17,8 @@ This AI contribution policy is loosely based on the one in the [Microsoft Open S
 
 ```bash
 # clone and setup
-git clone https://github.com/tekgnosis-net/blackvuesync.git
-cd blackvuesync
+git clone https://github.com/tekgnosis-net/blackvuesync-v2.git
+cd blackvuesync-v2
 
 # create virtual environment and install dependencies
 python3 -m venv venv
@@ -34,14 +34,35 @@ Pre-commit hooks will automatically run quality checks on `git commit` and in pu
 
 ## Tests
 
-The project includes both unit tests and integration tests:
-
 ```bash
-# run unit tests
-pytest test/blackvuesync_test.py -v
+# unit tests
+pytest test --ignore=test/e2e
 
-# run integration tests
+# browser tests (Playwright Chromium)
+pytest test/e2e -m e2e
+
+# integration tests against a mock dashcam
 behave
 ```
 
-A GitHub workflow automatically runs both unit and integration tests on all pull requests and merges to the main branch.
+GitHub Actions runs all of them, plus the pre-commit checks, on every pull
+request.
+
+## Documentation
+
+The documentation site is built with Material for MkDocs from `docs/` and
+`mkdocs.yml`:
+
+```bash
+pip install -e ".[docs]"
+mkdocs serve            # preview at http://127.0.0.1:8000/
+mkdocs build --strict   # what CI runs; fails on broken links
+```
+
+Update the relevant guide in `docs/guide/` together with any change in
+behaviour, and add an entry to `CHANGELOG.md`. After a user-interface change,
+regenerate the screenshots from synthetic demo data (requires ffmpeg):
+
+```bash
+python scripts/screenshots.py
+```

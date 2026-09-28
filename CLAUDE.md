@@ -4,9 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-BlackVue Sync synchronizes recordings from BlackVue dashcams to a local directory over HTTP. It has two runtimes: a `sync` CLI whose core (`sync.py`, `metrics.py`) uses only the standard library, and a `serve` web service (Flask) with an internal scheduler, dashboard, settings UI, log viewer, statistics and a recording viewer. Both ship in the Docker image, which defaults to `serve`.
+BlackVue Sync v2 synchronizes recordings from BlackVue dashcams to a local directory over HTTP. It has two runtimes: a `sync` CLI whose core (`sync.py`, `metrics.py`) uses only the standard library, and a `serve` web service (Flask) with an internal scheduler, dashboard, settings UI, log viewer, statistics and a recording viewer. Both ship in the Docker image, which defaults to `serve`.
 
-This project is a fork on GitHub: <https://github.com/tekgnosis-net/blackvuesync> (upstream: <https://github.com/acolomba/blackvuesync>)
+Repository: <https://github.com/tekgnosis-net/blackvuesync-v2> (standalone, not a GitHub fork). Documentation site: <https://tekgnosis-net.github.io/blackvuesync-v2/>.
+
+It started as a fork of the original BlackVue Sync by Alessandro Colomba (<https://github.com/acolomba/blackvuesync>) and became a separate project at 3.0.0. The fork phase (PRs #1-#22) lives in the archived repo `tekgnosis-net/blackvuesync`; CHANGELOG entries for 2.3.0-2.8.0a0 link there, entries for 2.2.0 and earlier link to upstream PRs.
+
+Naming: command `blackvuesync-v2`, module `blackvuesync_v2` (`python -m blackvuesync_v2`), distribution `blackvuesync-v2`, image `ghcr.io/tekgnosis-net/blackvuesync-v2`, UI name "BlackVue Sync v2". Deliberately kept from upstream so existing setups keep working: `BLACKVUESYNC_*` env vars, `blackvuesync_*` Prometheus metric names and the Pushgateway job default `blackvuesync`, and the on-disk names `.blackvuesync.lock` (shared with an upstream cron job on the same destination) and `.blackvuesync.metrics-state.json` (pinned by a test).
 
 ## Claude Code
 
@@ -39,7 +43,7 @@ pre-commit install
 pre-commit install --hook-type commit-msg
 ```
 
-The `-e` flag installs in editable mode, so changes to `blackvuesync.py` take effect immediately without reinstalling.
+The `-e` flag installs in editable mode, so changes under `blackvuesync_v2/` take effect immediately without reinstalling. Add `docs` to the extras (`pip install -e ".[dev,docs]"`) to build the documentation site.
 
 Pre-commit hooks will automatically run on `git commit` to check code quality, format code, and scan for secrets. The hooks include Black, shellcheck, yamllint, trufflehog, and others.
 
@@ -84,7 +88,7 @@ The application is a Python package under `blackvuesync_v2/`. Core modules:
 - `__main__.py` -- CLI entry point with two subcommands: `sync` (one-shot,
   cron-era flags) and `serve` (long-running web service with the internal
   scheduler). When the first argument is not a subcommand or flag (the legacy
-  `blackvuesync <address> ...` form), `sync` is inserted.
+  `blackvuesync-v2 <address> ...` form), `sync` is inserted.
 
 ### Settings
 
@@ -435,6 +439,47 @@ behave -D implementation=docker
 
 `features/CLAUDE.md` documents the BDD harness (mock dashcam, step library, userdata
 flags). Read it before changing anything under `features/`.
+
+## Documentation and Releases
+
+### Documentation site
+
+User documentation is a Material for MkDocs site (`mkdocs.yml`, sources in
+`docs/`, `docs/plans/` excluded) published to GitHub Pages by
+`.github/workflows/pages.yml`: every pull request runs
+`mkdocs build --strict` (broken links fail), pushes to `main` deploy.
+Preview with `mkdocs serve` after `pip install -e ".[docs]"`.
+
+- Guides live in `docs/guide/`; the README is a short landing page that links
+  to the site. Update the matching guide in the same change as the behaviour.
+- `docs/release-notes.md` and `docs/contributing.md` include `CHANGELOG.md`
+  and `CONTRIBUTING.md` via `pymdownx.snippets`; edit those root files, not
+  the stubs. The changelog include uses the `changelog` section markers.
+- Links from `CHANGELOG.md` into the docs use absolute site URLs, because the
+  file is also rendered on GitHub and in release notes.
+- Material 9.7 is in maintenance mode (fixes through May 2027) and requires
+  `mkdocs<2`; its successor Zensical reads the same `mkdocs.yml`.
+
+### Screenshots
+
+`python scripts/screenshots.py` regenerates `docs/assets/screenshots/*.png`
+from a synthetic demo: ffmpeg test-pattern clips, a GPS track along an
+OpenStreetMap route across the Sydney Harbour Bridge, invented run history
+and a demo dashcam HTTP server (vod list, recordings, `Config/version.bin`,
+`config.ini`, HEAD). It runs the real `serve` in a temp dir and drives it with
+Playwright (`bypass_csp`, since the app CSP forbids eval). Requires ffmpeg and
+Playwright Chromium. Never use real recordings or locations in screenshots.
+Regenerate after UI changes and after a version bump (the footer shows the
+version).
+
+### Versioning
+
+Semantic versioning, first standalone release 3.0.0. The version lives in
+`blackvuesync_v2/__init__.py` and `pyproject.toml` (keep them equal). Pushing
+a `vX.Y.Z` tag publishes Docker tags `X.Y.Z`, `X.Y` and `X`
+(`docker-build.yml`); `latest` follows `main`. PyPI publishing (`ci.yml`
+`publish` job) only runs when the repository variable `PYPI_PUBLISH` is
+`true` and a PyPI trusted publisher exists for `blackvuesync-v2`.
 
 ## Important Constraints
 

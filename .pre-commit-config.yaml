@@ -20,7 +20,7 @@ repos:
       - id: detect-private-key
       - id: check-added-large-files
         args: ['--maxkb=64']
-        exclude: '^features/mock_dashcam/files/|\.md$|chart\.umd\.min\.js$|leaflet\.js$|css/images/.*\.png$'
+        exclude: '^features/mock_dashcam/files/|^docs/assets/screenshots/|\.md$|chart\.umd\.min\.js$|leaflet\.js$|css/images/.*\.png$'
 
       # syntax checkers
       - id: check-json

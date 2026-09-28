@@ -1,0 +1,65 @@
+# documentation site, published to github pages by .github/workflows/pages.yml.
+# `mkdocs serve` previews locally; `mkdocs build --strict` fails on broken links.
+site_name: BlackVue Sync v2
+site_description: >-
+  Hands-off synchronization of BlackVue dashcam recordings to a local directory, with a web dashboard, recording viewer and statistics.
+site_url: https://tekgnosis-net.github.io/blackvuesync-v2/
+repo_url: https://github.com/tekgnosis-net/blackvuesync-v2
+repo_name: tekgnosis-net/blackvuesync-v2
+edit_uri: edit/main/docs/
+copyright: >-
+  Copyright 2018-2026 Alessandro Colomba (original BlackVue Sync); v2 additions copyright 2026 tekgnosis-net. MIT licensed. #magic___^_^___line
+docs_dir: docs
+exclude_docs: |
+  plans/
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.footer
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+
+nav:
+  - Home: index.md
+  - Features: features.md
+  - Getting started:
+      - Installation: guide/installation.md
+      - Configuration: guide/configuration.md
+      - Command line: guide/cli.md
+      - Upgrading: guide/upgrading.md
+      - Troubleshooting: guide/troubleshooting.md
+  - Reference:
+      - HTTP API: api.md
+      - Recording file formats: reference/blackvue-file-formats.md
+  - Release notes: release-notes.md
+  - Credits: credits.md
+  - Contributing: contributing.md

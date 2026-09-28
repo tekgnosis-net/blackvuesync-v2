@@ -1,11 +1,49 @@
 # CHANGELOG
 
-Versions 2.3.0 onward are from the tekgnosis-net fork. Pre-release versions
-(`aN`/`bN`) track the sub-project that introduced them.
+<!-- --8<-- [start:changelog] -->
+BlackVue Sync v2 follows [Semantic Versioning](https://semver.org/): a major
+version changes when an upgrade needs action from you, a minor version adds
+features, and a patch version only fixes bugs. Docker images are tagged with
+the full version (`3.0.0`), the minor (`3.0`) and the major (`3`).
 
-## Unreleased
+Versions 2.3.0 to 2.8.0a0 were developed as a fork of the upstream project at
+`tekgnosis-net/blackvuesync`; their pull requests remain in that archived
+repository. Versions 2.2.0 and earlier are the upstream
+[BlackVue Sync](https://github.com/acolomba/blackvuesync) by Alessandro
+Colomba; their numbers refer to upstream pull requests.
 
-Fixes from a full code review. See [docs/guide/upgrading.md](docs/guide/upgrading.md#upgrading-to-the-release-after-280a0) for what to check after upgrading.
+## 3.0.0 - unreleased
+
+First release of **BlackVue Sync v2** as a standalone project. See
+[Upgrading to 3.0.0](https://tekgnosis-net.github.io/blackvuesync-v2/guide/upgrading/#upgrading-to-300) before you
+upgrade.
+
+### Breaking changes
+
+* The project, command, Python package and image are renamed so they no longer
+  collide with the upstream `blackvuesync` package: repository
+  `tekgnosis-net/blackvuesync-v2`, image `ghcr.io/tekgnosis-net/blackvuesync-v2`,
+  command `blackvuesync-v2` (was `blackvuesync`), Python module
+  `blackvuesync_v2` and distribution `blackvuesync-v2`. Environment variables (`BLACKVUESYNC_*`), `settings.json`, Prometheus metric
+  names, the destination lock file and the recordings layout are unchanged.
+* The web service now applies `retention.keep` (default `2w`). Earlier
+  versions ignored it in scheduled syncs, so recordings older than the
+  setting are deleted on the first sync after upgrading. Clear the setting to
+  keep everything.
+* Cron day-of-week numbers follow standard cron: `0` and `7` are Sunday.
+  Earlier versions treated `0` as Monday, so numeric weekday schedules moved
+  by one day.
+
+### Added
+
+* Documentation site at <https://tekgnosis-net.github.io/blackvuesync-v2/> with installation, configuration,
+  command-line, upgrading and troubleshooting guides, a feature tour with
+  screenshots, the HTTP API reference and these release notes.
+* `scripts/screenshots.py` regenerates the documentation screenshots from a
+  synthetic demo library.
+* GitHub releases and semantic-version Docker tags.
+
+### Fixed
 
 * The web service now applies `retention.keep`, `sync.retry_failed_after`, `sync.skip_metadata` and `sync.affinity_key`; previously scheduled syncs ignored them, so old recordings were never deleted. An empty `keep` keeps recordings forever.
 * Live progress and log streaming work under waitress; they returned 500 in production.
@@ -23,43 +61,43 @@ Fixes from a full code review. See [docs/guide/upgrading.md](docs/guide/upgradin
 
 ## 2.8.0a0
 
-* Add recording viewer (`/viewer`): front/rear playback, GPS track on a map, G-sensor chart, and journey auto-advance. New `viewer` settings section (`journey_mode`, `speed_unit`). (#21)
+* Add recording viewer (`/viewer`): front/rear playback, GPS track on a map, G-sensor chart, and journey auto-advance. New `viewer` settings section (`journey_mode`, `speed_unit`). ([#21](https://github.com/tekgnosis-net/blackvuesync/pull/21))
 
 ## 2.7.0a0
 
-* Add statistics page (`/stats`): per-run history in `/config/stats.db` and a disk-usage forecast. New `stats` settings section (`retention_days`). (#20)
+* Add statistics page (`/stats`): per-run history in `/config/stats.db` and a disk-usage forecast. New `stats` settings section (`retention_days`). ([#20](https://github.com/tekgnosis-net/blackvuesync/pull/20))
 
 ## 2.6.0a0
 
-* Add live log viewer (`/logs`) backed by an in-memory ring buffer and a rotating log file under `/config/logs/`. (#19)
+* Add live log viewer (`/logs`) backed by an in-memory ring buffer and a rotating log file under `/config/logs/`. ([#19](https://github.com/tekgnosis-net/blackvuesync/pull/19))
 
 ## 2.5.0a0
 
-* Add settings UI (`/settings`) covering all settings sections, password change, and session rotation. (#18)
+* Add settings UI (`/settings`) covering all settings sections, password change, and session rotation. ([#18](https://github.com/tekgnosis-net/blackvuesync/pull/18))
 
 ## 2.4.0b0
 
-* Add dashboard with live progress, Sync now, Stop, Pause/Resume, and storage, dashcam, next-run and recent-activity cards. (#11, #12, #17)
-* Add read-only dashcam config info card. (#12)
-* Resume interrupted downloads with HTTP range requests. (#13)
-* Multi-stage Docker image; `uv` is no longer in the final image. (#14)
-* Apply logging setting changes without a restart. (#15)
+* Add dashboard with live progress, Sync now, Stop, Pause/Resume, and storage, dashcam, next-run and recent-activity cards. ([#11](https://github.com/tekgnosis-net/blackvuesync/pull/11), [#12](https://github.com/tekgnosis-net/blackvuesync/pull/12), [#17](https://github.com/tekgnosis-net/blackvuesync/pull/17))
+* Add read-only dashcam config info card. ([#12](https://github.com/tekgnosis-net/blackvuesync/pull/12))
+* Resume interrupted downloads with HTTP range requests. ([#13](https://github.com/tekgnosis-net/blackvuesync/pull/13))
+* Multi-stage Docker image; `uv` is no longer in the final image. ([#14](https://github.com/tekgnosis-net/blackvuesync/pull/14))
+* Apply logging setting changes without a restart. ([#15](https://github.com/tekgnosis-net/blackvuesync/pull/15))
 
 ## 2.3.0
 
-* Restructure as a package with `sync` and `serve` subcommands; `blackvuesync <address>` still runs a sync. (#4)
-* Add `SettingsStore`: `/config/settings.json` (mode `0600`), seeded from env vars on first start, canonical afterwards. (#5)
-* Add authentication: Argon2id passwords, first-run wizard, login rate limiting, and `login` / `none` / `proxy` modes. (#6)
-* Add sync API with live progress over SSE. (#7)
-* Add `serve`: Flask + waitress web service with an APScheduler-driven sync schedule. The `CRON` and `RUN_ONCE` env vars are retired; the image defaults to `serve` on port 8080. (#8)
-* Add settings and auth APIs. (#9)
-* Add structured JSON logs and Prometheus metrics export (upstream #73, #74).
+* Restructure as a package with `sync` and `serve` subcommands; `blackvuesync <address>` still ran a sync. ([#4](https://github.com/tekgnosis-net/blackvuesync/pull/4))
+* Add `SettingsStore`: `/config/settings.json` (mode `0600`), seeded from env vars on first start, canonical afterwards. ([#5](https://github.com/tekgnosis-net/blackvuesync/pull/5))
+* Add authentication: Argon2id passwords, first-run wizard, login rate limiting, and `login` / `none` / `proxy` modes. ([#6](https://github.com/tekgnosis-net/blackvuesync/pull/6))
+* Add sync API with live progress over SSE. ([#7](https://github.com/tekgnosis-net/blackvuesync/pull/7))
+* Add `serve`: Flask + waitress web service with an APScheduler-driven sync schedule. The `CRON` and `RUN_ONCE` env vars are retired; the image defaults to `serve` on port 8080. ([#8](https://github.com/tekgnosis-net/blackvuesync/pull/8))
+* Add settings and auth APIs. ([#9](https://github.com/tekgnosis-net/blackvuesync/pull/9))
+* Add structured JSON logs and Prometheus metrics export (upstream [#73](https://github.com/acolomba/blackvuesync/pull/73), [#74](https://github.com/acolomba/blackvuesync/pull/74)).
 
 ## 2.2.0
 
-* Replace undocumented `--filter` with `--include` and `--exclude` options for filtering recordings by type and direction. Codes are comma-separated, direction is optional. (#61)
-* Add `--retry-failed-after` option to retry failed downloads after a configurable delay. (#58)
-* Add `--skip-metadata` option to skip downloading metadata files (thumbnails, accelerometer, GPS). (#14)
+* Replace undocumented `--filter` with `--include` and `--exclude` options for filtering recordings by type and direction. Codes are comma-separated, direction is optional. ([#61](https://github.com/acolomba/blackvuesync/pull/61))
+* Add `--retry-failed-after` option to retry failed downloads after a configurable delay. ([#58](https://github.com/acolomba/blackvuesync/pull/58))
+* Add `--skip-metadata` option to skip downloading metadata files (thumbnails, accelerometer, GPS). ([#14](https://github.com/acolomba/blackvuesync/pull/14))
 * Stream recording downloads in chunks to avoid buffering full files in memory.
 * Close the lock file descriptor when lock acquisition fails and distinguish lock contention from other OS errors.
 * Ensure lock descriptor `0` is always unlocked on exit.
@@ -70,14 +108,14 @@ Fixes from a full code review. See [docs/guide/upgrading.md](docs/guide/upgradin
 
 ## 2.1
 
-* Minor resource cleanup fix. (#52)
+* Minor resource cleanup fix. ([#52](https://github.com/acolomba/blackvuesync/pull/52))
 
 ## 2.0
 
 * Modernize for Python 3.9, now that it's available in Debian Bullseye oldoldstable, the earliest LTS-supported Debian release. Now uses type hints, f-strings; walrus operator.
 * Logging uses lazy evaluation.
 * Add initial Claude Code settings and AI contribution policy.
-* Build Docker images for amd64, arm64, and armv7 architectures. (#12)
+* Build Docker images for amd64, arm64, and armv7 architectures. ([#12](https://github.com/acolomba/blackvuesync/pull/12))
 * Add support for 'O' (Optional) camera direction on DR770X Box Pro and similar models. (inspired by grysage/blackvuesync)
 * Add support for DMS (Driver Monitoring System) recording types: D (Drowsiness), L (Distraction), Y (Seatbelt), F (Undetected).
 * Publish to PyPi. Can be run with `uvx blackvuesync` without explicitly installing.
@@ -85,25 +123,25 @@ Fixes from a full code review. See [docs/guide/upgrading.md](docs/guide/upgradin
 
 ## 1.10 (2025-12-28)
 
-* Add `--filter` option to filter which events are downloaded. (#6)
-* Add support for the interior camera found on the DR750X-3CH. (#7)
-* Download GPS data for all recording types. (#9)
-* Flush logs on exit. (#20)
-* Silence host/network down/unreachable and timeout in cron mode (inspired by #23).
+* Add `--filter` option to filter which events are downloaded. ([#6](https://github.com/acolomba/blackvuesync/pull/6))
+* Add support for the interior camera found on the DR750X-3CH. ([#7](https://github.com/acolomba/blackvuesync/pull/7))
+* Download GPS data for all recording types. ([#9](https://github.com/acolomba/blackvuesync/pull/9))
+* Flush logs on exit. ([#20](https://github.com/acolomba/blackvuesync/pull/20))
+* Silence host/network down/unreachable and timeout in cron mode (inspired by [#23](https://github.com/acolomba/blackvuesync/pull/23)).
 * Propagate exit status code to calling process. In cron mode, expected errors produce a success exit status.
 * Add "rdate" priority, to download from newest to oldest.
 * Upgrade alpine image to 3.23.2.
 
 ## 1.9 (2021-08-08)
 
-* Properly removes outdated recordings with new event types and upload flags from May 2021 firmware. (#4)
+* Properly removes outdated recordings with new event types and upload flags from May 2021 firmware. ([#4](https://github.com/acolomba/blackvuesync/pull/4))
 
 ## 1.8 (2021-05-24)
 
-* Supports new event types produced by the May 2021 [BlackVue firmware update](https://blackvue.com/major-update-improved-blackvue-app-ui-dark-mode-live-event-upload-and-more/). (#3)
+* Supports new event types produced by the May 2021 [BlackVue firmware update](https://blackvue.com/major-update-improved-blackvue-app-ui-dark-mode-live-event-upload-and-more/). ([#3](https://github.com/acolomba/blackvuesync/pull/3))
 * The Docker image respects the KEEP option now.
 * Docker compose file for a possibly quicker quickstart.
-* Friendlier hardware requirement descriptions. (#2)
+* Friendlier hardware requirement descriptions. ([#2](https://github.com/acolomba/blackvuesync/pull/2))
 * More reliable removal of outdated directories when grouping by day, month or year.
 * Better handling of unexpected 500 errors or remote disconnections.
 * Upgraded docker image to alpine 3.13.5
@@ -150,3 +188,4 @@ Fixes from a full code review. See [docs/guide/upgrading.md](docs/guide/upgradin
 ## 1.0 (2019-01-30)
 
 * initial release
+<!-- --8<-- [end:changelog] -->

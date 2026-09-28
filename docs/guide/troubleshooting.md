@@ -5,7 +5,7 @@ the capture verbosity to **Debug** and the display filter to **Debug**, then
 reproduce the problem. From the host:
 
 ```sh
-docker compose logs --tail 200 blackvuesync
+docker compose logs --tail 200 blackvuesync-v2
 ```
 
 The same log is written to `/config/logs/blackvuesync.log`.
@@ -17,7 +17,7 @@ The same log is written to `/config/logs/blackvuesync.log`.
 `settings.json` must be readable only by its owner:
 
 ```sh
-chmod 600 ~/blackvuesync/config/settings.json
+chmod 600 ~/blackvuesync-v2/config/settings.json
 ```
 
 ### `PermissionError` / `Permission denied` on `/config`
@@ -26,7 +26,7 @@ The service runs as the user given by `PUID`/`PGID`. That user must own the
 host directory mounted at `/config`:
 
 ```sh
-sudo chown -R 1000:1000 ~/blackvuesync/config   # use your PUID:PGID
+sudo chown -R 1000:1000 ~/blackvuesync-v2/config   # use your PUID:PGID
 ```
 
 ### `JSONDecodeError` on startup
@@ -45,7 +45,7 @@ the log. Correct it under **Settings → Schedule**.
 ## Cannot open the web UI
 
 * Check the port is published: `docker ps` should show `0.0.0.0:8080->8080`.
-* Check the container is healthy: `docker inspect --format '{{.State.Health.Status}}' blackvuesync`.
+* Check the container is healthy: `docker inspect --format '{{.State.Health.Status}}' blackvuesync-v2`.
 * From the host, `curl -i http://localhost:8080/healthz` should return `200`.
 * If you changed **Web → Port**, update the port mapping to match and
   restart.
@@ -193,6 +193,13 @@ often have no GPS fix. The map tiles are loaded from OpenStreetMap, so the
 browser needs internet access; without it the track still draws on a blank
 background.
 
+### Viewer list takes a few seconds on first open
+
+After the service starts, the first visit to the viewer reads every recording
+folder once to build its index; on a NAS with tens of thousands of recordings
+that takes a few seconds. Later visits only re-read folders that changed and
+open almost instantly. The list shows days; open a day to see its recordings.
+
 ### Viewer does not play a video
 
 Browsers play the H.264 video in BlackVue `.mp4` files. If a file does not
@@ -205,8 +212,8 @@ To reset all settings but keep recordings:
 
 ```sh
 docker compose down
-mv ~/blackvuesync/config ~/blackvuesync/config.old
-mkdir ~/blackvuesync/config
+mv ~/blackvuesync-v2/config ~/blackvuesync-v2/config.old
+mkdir ~/blackvuesync-v2/config
 docker compose up -d
 ```
 
@@ -215,9 +222,9 @@ page asks for a new password.
 
 ## Reporting a bug
 
-Open an issue at <https://github.com/tekgnosis-net/blackvuesync/issues> with:
+Open an issue at <https://github.com/tekgnosis-net/blackvuesync-v2/issues> with:
 
-* the version (`docker exec blackvuesync python -m blackvuesync_v2 --version`),
+* the version (`docker exec blackvuesync-v2 python -m blackvuesync_v2 --version`),
 * the dashcam model and firmware (shown on the dashboard's dashcam card),
 * the relevant log lines, captured with verbosity set to **Debug** on the
   Logs page.

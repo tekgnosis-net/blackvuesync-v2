@@ -1,11 +1,12 @@
-# see docs/guide/installation.md. environment variables below are read only on
+# see https://tekgnosis-net.github.io/blackvuesync-v2/guide/installation/. environment variables below are read only on
 # the first start, to create /config/settings.json; afterwards settings are
 # changed in the web ui (Settings page). PUID, PGID, TZ and
 # BLACKVUESYNC_TRUST_PROXY are read on every start.
 services:
-  blackvuesync:
-    image: ghcr.io/tekgnosis-net/blackvuesync:latest
-    container_name: blackvuesync
+  blackvuesync-v2:
+    # :3 receives every 3.x release; :latest follows the main branch.
+    image: ghcr.io/tekgnosis-net/blackvuesync-v2:3
+    container_name: blackvuesync-v2
     restart: unless-stopped
     ports:
       - "8080:8080"
