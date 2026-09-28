@@ -200,7 +200,7 @@ Other options:
 * `--metrics-pushgateway-url`: Pushes Prometheus text format metrics to the given Pushgateway URL.
 * `--metrics-job`: Sets the Pushgateway job grouping value. Defaults to `blackvuesync`.
 * `--metrics-instance`: Sets the Pushgateway instance grouping value. Defaults to the dashcam address.
-* `--metrics-state-file`: Persists cross-run metrics state at the given path. Defaults to `.blackvuesync_v2.metrics-state.json` under the destination when metrics are enabled.
+* `--metrics-state-file`: Persists cross-run metrics state at the given path. Defaults to `.blackvuesync.metrics-state.json` under the destination when metrics are enabled.
 
 #### Recording type and direction codes
 
@@ -270,7 +270,7 @@ blackvuesync dashcam.example.net --destination /data/dashcam --cron --metrics-pu
 ```
 
 Metrics are opt-in. When enabled, BlackVueSync persists the last successful file
-pull timestamp in `.blackvuesync_v2.metrics-state.json` under the destination
+pull timestamp in `.blackvuesync.metrics-state.json` under the destination
 unless `--metrics-state-file` is set. Metrics delivery failures are logged as
 warnings and do not replace the sync exit result.
 Run-level failures such as dashcam index timeouts are exposed through

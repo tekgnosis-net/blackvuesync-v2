@@ -15,7 +15,7 @@ import urllib.request
 from dataclasses import dataclass
 
 METRICS_DEFAULT_JOB = "blackvuesync"
-METRICS_DEFAULT_STATE_FILENAME = ".blackvuesync_v2.metrics-state.json"
+METRICS_DEFAULT_STATE_FILENAME = ".blackvuesync.metrics-state.json"
 METRIC_FAILURE_REASONS = ("http", "network", "timeout", "disk", "unknown")
 
 # cron logger (remains active in cron mode)

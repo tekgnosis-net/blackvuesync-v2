@@ -473,3 +473,16 @@ def test_do_sync_invalid_retry_duration_fails_the_job(
 
     assert called is False
     assert pub.snapshot().state == "failed"
+
+
+def test_on_disk_names_shared_with_upstream_are_unchanged() -> None:
+    """the v2 rename keeps the destination lock and metrics state file names.
+
+    an upstream cron job on the same destination must see the same lock, and
+    cli metrics continuity depends on the state file keeping its name.
+    """
+    from blackvuesync_v2 import metrics as _metrics
+    from blackvuesync_v2 import sync as _sync_module
+
+    assert _metrics.METRICS_DEFAULT_STATE_FILENAME == ".blackvuesync.metrics-state.json"
+    assert ".blackvuesync.lock" in Path(_sync_module.__file__).read_text()
