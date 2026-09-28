@@ -30,18 +30,18 @@
 .settings-pane-title { font-size: var(--text-title3); font-weight: 700; }
 .settings-tier { font-size: var(--text-caption1); font-weight: 600; padding: 2px var(--space-2);
   border-radius: var(--radius-sm); }
-.settings-tier-immediate { background: color-mix(in srgb, var(--color-success) 18%, transparent); color: var(--color-success); }
-.settings-tier-next_tick { background: color-mix(in srgb, var(--color-warning) 18%, transparent); color: var(--color-warning); }
-.settings-tier-restart { background: color-mix(in srgb, var(--color-error) 16%, transparent); color: var(--color-error); }
+.settings-tier-immediate { background: color-mix(in srgb, var(--color-success) 18%, transparent); color: var(--color-success-text); }
+.settings-tier-next_tick { background: color-mix(in srgb, var(--color-warning) 18%, transparent); color: var(--color-warning-text); }
+.settings-tier-restart { background: color-mix(in srgb, var(--color-error) 16%, transparent); color: var(--color-error-text); }
 .settings-field { margin-bottom: var(--space-4); }
 .settings-field label,
 .settings-field .field-label { display: block; font-size: var(--text-footnote); font-weight: 600;
   color: var(--color-label-secondary); margin-bottom: var(--space-1); }
 .settings-field .field-help { font-size: var(--text-caption1); color: var(--color-label-tertiary); margin-top: var(--space-1); }
 .settings-errors { background: color-mix(in srgb, var(--color-error) 10%, transparent);
-  color: var(--color-error); border-radius: var(--radius-md); padding: var(--space-3);
+  color: var(--color-error-text); border-radius: var(--radius-md); padding: var(--space-3);
   margin-bottom: var(--space-4); font-size: var(--text-footnote); }
 .settings-actions { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-4); }
 .settings-toast { font-size: var(--text-footnote); }
-.settings-toast.ok { color: var(--color-success); }
+.settings-toast.ok { color: var(--color-success-text); }
 @media (max-width: 720px) { .settings { grid-template-columns: 1fr; } }

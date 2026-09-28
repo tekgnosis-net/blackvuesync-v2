@@ -12,6 +12,27 @@ repository. Versions 2.2.0 and earlier are the upstream
 [BlackVue Sync](https://github.com/acolomba/blackvuesync) by Alessandro
 Colomba; their numbers refer to upstream pull requests.
 
+## Unreleased
+
+### Fixed
+
+* The viewer's buttons were nearly invisible in dark mode (dark text on a
+  dark button). The interface now declares that it supports both light and
+  dark appearances, so browser-drawn controls (buttons, sliders, form fields,
+  scroll bars) follow the system theme, and the viewer buttons set their own
+  text colour.
+* Text contrast now meets WCAG AA (4.5:1) on every page in both light and
+  dark mode. Secondary and help text, the accent colour on buttons and the
+  active tab, status badges, settings tier labels and alerts were darkened or
+  brightened where they fell short. A browser test checks every page in both
+  modes.
+
+### Changed
+
+* The viewer's Play button is an icon that switches to Pause while the video
+  plays, including when playback moves on to the next segment by itself. The
+  transport controls wrap onto two rows on narrow screens.
+
 ## 3.0.2 - 2026-09-28
 
 ### Fixed

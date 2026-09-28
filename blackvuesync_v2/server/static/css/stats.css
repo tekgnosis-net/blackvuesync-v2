@@ -32,9 +32,9 @@
 }
 
 .stats-range-btn.active {
-  background: var(--color-accent, #0071e3);
+  background: var(--color-accent-fill, #0066cc);
   color: #fff;
-  border-color: var(--color-accent, #0071e3);
+  border-color: var(--color-accent-fill, #0066cc);
 }
 
 .stats-summary {

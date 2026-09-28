@@ -19,7 +19,10 @@
     </div>
 
     <div class="viewer-transport">
-      <button type="button" id="viewer-play" class="viewer-btn">Play</button>
+      <button type="button" id="viewer-play" class="viewer-btn viewer-play" data-playing="false" aria-label="Play" title="Play">
+        <svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 2.5v11l9.5-5.5z"/></svg>
+        <svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 2.5h3.2v11H3.5zm5.8 0h3.2v11H9.3z"/></svg>
+      </button>
       <input type="range" id="viewer-seek" class="viewer-seek" min="0" max="1000" value="0" aria-label="Seek">
       <span id="viewer-time" class="viewer-time">0:00 / 0:00</span>
       <button type="button" id="viewer-layout" class="viewer-btn">Side-by-side</button>

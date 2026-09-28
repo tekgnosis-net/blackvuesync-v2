@@ -39,24 +39,38 @@
   --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
   --shadow-prominent: 0 8px 24px rgba(0, 0, 0, 0.16), 0 4px 8px rgba(0, 0, 0, 0.12);
 
-  /* light mode colors (system grays + accents) */
+  /* native controls, scrollbars and default text follow the system theme */
+  color-scheme: light dark;
+
+  /* light mode colors (system grays + accents); text tokens meet wcag aa
+     (4.5:1) on every surface, enforced by test/e2e/test_contrast.py */
   --color-background: #f2f2f7;
   --color-surface: #ffffff;
   --color-surface-secondary: #f2f2f7;
 
   --color-label: #000000;
-  --color-label-secondary: rgba(60, 60, 67, 0.6);
-  --color-label-tertiary: rgba(60, 60, 67, 0.3);
+  --color-label-secondary: rgba(60, 60, 67, 0.8);
+  --color-label-tertiary: rgba(60, 60, 67, 0.76);
 
   --color-separator: rgba(60, 60, 67, 0.12);
 
   --color-accent: #007aff;
   --color-accent-hover: #0056b3;
+  /* backgrounds under white text, and accent-coloured text */
+  --color-accent-fill: #0066cc;
+  --color-accent-fill-hover: #0055aa;
+  --color-accent-text: #0056ad;
 
   --color-success: #34c759;
   --color-warning: #ff9500;
   --color-error: #ff3b30;
   --color-info: #5ac8fa;
+
+  /* status colours as text on their own tinted badges */
+  --color-success-text: #17692d;
+  --color-warning-text: #8f3f00;
+  --color-error-text: #b00018;
+  --color-info-text: #005a7a;
 
   --color-fill: rgba(120, 120, 128, 0.2);
   --color-fill-secondary: rgba(120, 120, 128, 0.16);
@@ -70,16 +84,23 @@
 
     --color-label: #ffffff;
     --color-label-secondary: rgba(235, 235, 245, 0.6);
-    --color-label-tertiary: rgba(235, 235, 245, 0.3);
+    --color-label-tertiary: rgba(235, 235, 245, 0.55);
 
     --color-separator: rgba(84, 84, 88, 0.6);
 
     --color-accent: #0a84ff;
     --color-accent-hover: #409cff;
+    --color-accent-fill: #0066cc;
+    --color-accent-fill-hover: #0055aa;
+    --color-accent-text: #409cff;
 
     --color-success: #30d158;
     --color-warning: #ff9f0a;
     --color-error: #ff453a;
+    --color-success-text: #30d158;
+    --color-warning-text: #ff9f0a;
+    --color-error-text: #ff6961;
+    --color-info-text: #64d2ff;
     --color-info: #64d2ff;
 
     --color-fill: rgba(120, 120, 128, 0.36);

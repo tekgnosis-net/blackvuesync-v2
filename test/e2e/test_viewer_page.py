@@ -205,3 +205,37 @@ def test_sidebar_lists_days_and_loads_a_day_on_open(
 
     older.locator(".viewer-day-label").click()  # collapses without refetching
     expect(older.locator(".viewer-day-body")).to_be_hidden()
+
+
+def test_play_button_icon_follows_the_video_state(live_server: Any, page: Page) -> None:
+    """the icon swaps on the video's own events, so auto-advance keeps it right."""
+    _seed(live_server.destination)
+    _login(page, live_server.url)
+    page.goto(f"{live_server.url}/viewer")
+    with page.expect_response(lambda r: "/journey" in r.url):
+        page.locator(".viewer-rec").first.click()
+    play = page.locator("#viewer-play")
+    expect(play).to_have_attribute("aria-label", "Play")
+    expect(play.locator(".icon-play")).to_be_visible()
+    expect(play.locator(".icon-pause")).to_be_hidden()
+
+    def emit(event: str, paused: bool) -> None:
+        # a synthetic event leaves `paused` unchanged, so it is stubbed
+        page.evaluate(
+            """([event, paused]) => {
+              const v = document.getElementById('viewer-front');
+              Object.defineProperty(v, 'paused', { configurable: true, get: () => paused });
+              v.dispatchEvent(new Event(event));
+            }""",
+            [event, paused],
+        )
+
+    emit("play", False)
+    expect(play).to_have_attribute("aria-label", "Pause")
+    expect(play).to_have_attribute("data-playing", "true")
+    expect(play.locator(".icon-pause")).to_be_visible()
+    expect(play.locator(".icon-play")).to_be_hidden()
+
+    emit("ended", True)
+    expect(play).to_have_attribute("aria-label", "Play")
+    expect(play.locator(".icon-play")).to_be_visible()

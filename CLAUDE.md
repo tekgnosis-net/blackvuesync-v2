@@ -289,6 +289,14 @@ Front end: Jinja templates under `server/templates/`, with Alpine.js, htmx,
 Chart.js and Leaflet vendored under `server/static/js/` (see `VENDORED.md`).
 No build step; page scripts are plain files in `static/js/`.
 
+Colours come from the tokens in `static/css/tokens.css`, which also declares
+`color-scheme: light dark` so native controls follow the system theme. Use the
+`-text` variants (`--color-success-text`, `--color-accent-text`, ...) for text
+and `--color-accent-fill` behind white text; the base status colours are for
+fills, bars and borders. Elements that set a background must also set a text
+colour. `test/e2e/test_contrast.py` fails any text below 4.5:1 in light or
+dark mode.
+
 **Auth modes** (set via `settings.json` `auth.mode`):
 
 | Mode | Behavior |
@@ -419,7 +427,8 @@ Two logger hierarchies:
   `test/test_dashboard_render.py`, `test/test_dashboard_sse_handoff.py` --
   page rendering
 - `test/e2e/` -- Playwright browser tests for the dashboard, settings, logs,
-  stats and viewer pages, plus frontend error handling. Deselected by default
+  stats and viewer pages, frontend error handling, and a WCAG AA text-contrast
+  audit of every page in light and dark mode (`test_contrast.py`). Deselected by default
   (`addopts = -m 'not e2e'`); run with `pytest test/e2e -m e2e`
 - `features/` -- Behave BDD integration tests against a mock BlackVue dashcam
 
