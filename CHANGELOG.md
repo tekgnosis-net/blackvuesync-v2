@@ -12,6 +12,17 @@ repository. Versions 2.2.0 and earlier are the upstream
 [BlackVue Sync](https://github.com/acolomba/blackvuesync) by Alessandro
 Colomba; their numbers refer to upstream pull requests.
 
+## Unreleased
+
+### Changed
+
+* The Docker image is based on Alpine 3.24 and runs on **Python 3.14**
+  (previously Alpine 3.23 with Python 3.12), with argon2-cffi 25.1. Password
+  hashes created by earlier versions keep working unchanged.
+* CI uses `actions/checkout` and `actions/setup-python` v7. Development
+  dependencies allow pytest 9, black 26, mypy 2 and pylint 4 where the Python
+  version supports them.
+
 ## 3.0.0 - 2026-09-28
 
 First release of **BlackVue Sync v2** as a standalone project. See
