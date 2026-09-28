@@ -108,7 +108,9 @@ The dashcam is off, out of Wi-Fi range, or on another address. This is
 normal when the car is away. The web service then logs a single line such as
 `dashcam 192.168.1.50 not reachable; next attempt at the scheduled time`, and
 the dashboard's **Last sync** card shows a grey **dashcam not reachable**
-badge instead of a red **failed** one. A refused connection is different: it
+badge instead of a red **failed** one. On the Statistics page such runs are
+counted under **Dashcam offline**, not as failures. A refused connection is
+different: it
 means another device answered on that address, so it is reported as an error.
 
 If the car is parked in range:

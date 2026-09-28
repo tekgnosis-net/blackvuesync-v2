@@ -54,21 +54,31 @@ def _point(row: RunRow) -> dict[str, object]:
         "success": row.success,
         "failures": row.failures,
         "dry_run": row.dry_run,
+        "offline": row.unreachable,
     }
 
 
 def _summary(rows: list[RunRow]) -> dict[str, object]:
-    """computes the summary tiles over the rows in range."""
-    runs = len(rows)
+    """computes the summary tiles over the rows in range.
+
+    runs that could not reach the dashcam (car away) are counted separately:
+    success rate and average duration only cover runs that reached it, so a
+    car parked elsewhere all day does not read as a failing sync.
+    """
+    reached = [r for r in rows if not r.unreachable]
     total_bytes = sum(r.bytes for r in rows if not r.dry_run)
-    avg_duration = (sum(r.duration_seconds for r in rows) / runs) if runs else 0.0
-    successes = sum(1 for r in rows if r.success)
-    success_rate = (successes / runs) if runs else 0.0
+    avg_duration = (
+        sum(r.duration_seconds for r in reached) / len(reached) if reached else 0.0
+    )
+    successes = sum(1 for r in reached if r.success)
     return {
-        "runs": runs,
+        "runs": len(rows),
+        "offline": len(rows) - len(reached),
+        "reachable_runs": len(reached),
         "bytes": total_bytes,
         "avg_duration_seconds": avg_duration,
-        "success_rate": success_rate,
+        # None when no run reached the dashcam (shown as "--")
+        "success_rate": successes / len(reached) if reached else None,
     }
 
 

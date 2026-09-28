@@ -152,3 +152,74 @@ def test_stats_page_has_noscript_fallback(app_and_client: Any) -> None:
     resp = client.get("/stats")
     assert b"<noscript>" in resp.data
     assert resp.data.count(b"<tr>") >= 4  # 1 header row + 3 seeded data rows
+
+
+def _record(
+    stats: StatsStore,
+    ts: float,
+    *,
+    success: int,
+    reason: str | None = None,
+    files: int = 0,
+    duration: float = 30.0,
+) -> None:
+    """records a run the way sync_runner does (every reason, most zero)."""
+    m = SyncMetrics(run_start_monotonic=0.0, run_start_timestamp=ts)
+    m.last_run_timestamp_seconds = ts
+    m.last_run_success = success
+    m.last_run_exit_code = 0 if success else 1
+    m.run_duration_seconds = duration
+    m.files_downloaded_last_run = files
+    m.bytes_downloaded_last_run = files * 1000
+    if reason:
+        m.record_run_failure(reason)
+    stats.record_run(m)
+
+
+def test_offline_runs_are_counted_separately(app_and_client: Any) -> None:
+    """car away all day must not read as a failing sync."""
+    _, client, stats = app_and_client
+    now = time.time()
+    _record(stats, now - 900, success=1, files=4, duration=60.0)
+    _record(stats, now - 800, success=1, files=0, duration=20.0)
+    _record(stats, now - 700, success=0, reason="http", duration=10.0)
+    for i, reason in enumerate(("network", "timeout", "network")):
+        _record(stats, now - 600 + i, success=0, reason=reason, duration=3.0)
+    body = json.loads(client.get("/api/stats/series?range=24h").data)
+    summary = body["summary"]
+    assert summary["runs"] == 6
+    assert summary["offline"] == 3
+    assert summary["reachable_runs"] == 3
+    assert summary["success_rate"] == pytest.approx(2 / 3)
+    assert summary["avg_duration_seconds"] == pytest.approx(30.0)  # 60, 20, 10
+    offline_flags = [p["offline"] for p in body["series"]["points"]]
+    assert offline_flags == [False, False, False, True, True, True]
+
+
+def test_success_rate_is_null_when_no_run_reached_the_dashcam(
+    app_and_client: Any,
+) -> None:
+    _, client, stats = app_and_client
+    now = time.time()
+    for i in range(3):
+        _record(stats, now - 300 + i, success=0, reason="network", duration=3.0)
+    summary = json.loads(client.get("/api/stats/series?range=24h").data)["summary"]
+    assert summary["offline"] == 3
+    assert summary["reachable_runs"] == 0
+    assert summary["success_rate"] is None
+
+
+def test_a_mixed_failure_is_not_offline(app_and_client: Any) -> None:
+    """a timeout plus a disk failure is a real failure, not the car away."""
+    _, client, stats = app_and_client
+    now = time.time()
+    m = SyncMetrics(run_start_monotonic=0.0, run_start_timestamp=now)
+    m.last_run_timestamp_seconds = now - 60
+    m.last_run_success = 0
+    m.run_duration_seconds = 5.0
+    m.record_run_failure("timeout")
+    m.record_run_failure("disk")
+    stats.record_run(m)
+    summary = json.loads(client.get("/api/stats/series?range=24h").data)["summary"]
+    assert summary["offline"] == 0
+    assert summary["success_rate"] == 0.0

@@ -44,7 +44,9 @@ The same log is written to `/config/logs/`.
 ![Statistics](assets/screenshots/stats.png)
 
 Every sync is recorded: runs, data downloaded, duration and success rate over
-24 hours, 7 days, 30 days or all time. The disk chart projects when the
+24 hours, 7 days, 30 days or all time. Runs made while the car was away are
+counted separately as **Dashcam offline** and do not lower the success rate,
+which covers only runs that reached the dashcam. The disk chart projects when the
 destination reaches its limit, taking retention into account.
 
 ## Settings

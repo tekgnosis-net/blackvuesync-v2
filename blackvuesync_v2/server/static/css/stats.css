@@ -39,7 +39,7 @@
 
 .stats-summary {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: var(--space-3, 12px);
   margin-bottom: var(--space-4, 16px);
 }

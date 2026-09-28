@@ -42,6 +42,9 @@ CREATE INDEX IF NOT EXISTS idx_runs_ts ON runs (ts_seconds);
 
 _SECONDS_PER_DAY = 86400.0
 
+# failure reasons that mean the dashcam could not be reached (car away).
+UNREACHABLE_REASONS = frozenset({"network", "timeout"})
+
 
 @dataclasses.dataclass(frozen=True)
 class RunRow:  # pylint: disable=too-many-instance-attributes
@@ -59,6 +62,16 @@ class RunRow:  # pylint: disable=too-many-instance-attributes
     failed_markers: int
     failures: dict[str, int]
     dry_run: int
+
+    @property
+    def unreachable(self) -> bool:
+        """true when the run failed only because the dashcam was not reachable.
+
+        stored runs list every failure reason with its count, most of them 0,
+        so only reasons that actually occurred are considered.
+        """
+        reasons = {reason for reason, count in self.failures.items() if count}
+        return not self.success and bool(reasons) and reasons <= UNREACHABLE_REASONS
 
 
 class StatsStore:
@@ -198,4 +211,4 @@ class StatsStore:
         )
 
 
-__all__ = ["RunRow", "StatsStore"]
+__all__ = ["UNREACHABLE_REASONS", "RunRow", "StatsStore"]
