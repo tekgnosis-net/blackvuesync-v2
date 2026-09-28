@@ -155,6 +155,14 @@ SECTION_FIELD_SPECS: dict[str, tuple[FieldSpec, ...]] = {
             help="progressive grows the map as you watch; full plots the whole route up front",
         ),
         FieldSpec("speed_unit", "Speed unit", "select", "text", options=("kmh", "mph")),
+        FieldSpec(
+            "continuous_play",
+            "Continuous play",
+            "toggle",
+            "bool",
+            help="plays every back-to-back segment in time order, whatever its type"
+            " (normal, event, parking...); off plays only segments of the selected type",
+        ),
     ),
     "web": (
         FieldSpec("port", "Port", "number", "number"),

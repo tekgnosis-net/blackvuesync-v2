@@ -29,7 +29,10 @@ chunk; the partial file is kept and resumed next time.
 - Front and rear play together, picture-in-picture or side by side.
 - The GPS track is drawn on an OpenStreetMap map with a marker that follows
   the video, alongside speed and a G-sensor chart.
-- Consecutive recordings of one drive play one after another.
+- Consecutive recordings of one drive play one after another, and the list
+  follows along. With **Continuous play** on, event (E) and parking (P)
+  segments within a drive play too; otherwise only segments of the type you
+  selected do.
 
 ## Logs
 

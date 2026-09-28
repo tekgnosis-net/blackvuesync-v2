@@ -145,27 +145,29 @@ const viewer = {
     return group;
   },
 
-  async toggleDay(group) {
+  async toggleDay(group, reveal = false) {
     if (!group) return;
     const header = group.querySelector(".viewer-day-label");
     const body = group.querySelector(".viewer-day-body");
     const open = header.getAttribute("aria-expanded") !== "true";
     header.setAttribute("aria-expanded", String(open));
     body.hidden = !open;
-    if (!open || group.dataset.loaded) return;
-    group.dataset.loaded = "loading";
-    this.sidebarNote(body, "Loading…");
-    const url = RECORDINGS_API + "?date=" + encodeURIComponent(group.dataset.date);
-    const { data, error } = await fetchJson(url);
-    if (!data) {
-      delete group.dataset.loaded; // retried on the next open
-      this.sidebarNote(body, "Could not load this day (" + error + ").");
-      return;
+    if (!open) return;
+    if (!group.dataset.loaded) {
+      group.dataset.loaded = "loading";
+      this.sidebarNote(body, "Loading…");
+      const url = RECORDINGS_API + "?date=" + encodeURIComponent(group.dataset.date);
+      const { data, error } = await fetchJson(url);
+      if (!data) {
+        delete group.dataset.loaded; // retried on the next open
+        this.sidebarNote(body, "Could not load this day (" + error + ").");
+        return;
+      }
+      group.dataset.loaded = "done";
+      const recs = data.days.flatMap((day) => day.recordings);
+      body.replaceChildren(...recs.map((rec) => this.recRow(rec)));
     }
-    group.dataset.loaded = "done";
-    const recs = data.days.flatMap((day) => day.recordings);
-    body.replaceChildren(...recs.map((rec) => this.recRow(rec)));
-    if (this.activeKey) this.markActive(this.activeKey);
+    if (this.activeKey) this.markActive(this.activeKey, reveal);
   },
 
   recRow(rec) {
@@ -191,11 +193,40 @@ const viewer = {
     return row;
   },
 
-  markActive(key) {
+  // reveal scrolls the sidebar (never the page) to the row when it is off-screen
+  markActive(key, reveal = false) {
     this.activeKey = key;
+    let active = null;
     this.el.querySelectorAll(".viewer-rec").forEach((row) => {
-      row.classList.toggle("active", row.dataset.key === key);
+      const on = row.dataset.key === key;
+      row.classList.toggle("active", on);
+      if (on) active = row;
     });
+    if (active && reveal) {
+      const list = active.closest(".viewer-sidebar");
+      const box = active.getBoundingClientRect();
+      const view = list.getBoundingClientRect();
+      if (box.top < view.top) list.scrollTop -= view.top - box.top;
+      else if (box.bottom > view.bottom) list.scrollTop += box.bottom - view.bottom;
+    }
+    return active;
+  },
+
+  // keeps the sidebar on the playing segment, opening its day when collapsed
+  // (a collapsed day may still hold its rows, hidden)
+  followSegment(seg) {
+    const key = recordingKey(seg);
+    const date = String(seg.datetime).slice(0, 10);
+    const group = [...this.el.querySelectorAll(".viewer-day")].find(
+      (g) => g.dataset.date === date
+    );
+    const label = group?.querySelector(".viewer-day-label");
+    if (label && label.getAttribute("aria-expanded") !== "true") {
+      this.markActive(key);
+      this.toggleDay(group, true); // highlights and reveals once the day shows
+    } else {
+      this.markActive(key, true);
+    }
   },
 
   async selectRecording(rec) {
@@ -224,6 +255,7 @@ const viewer = {
     if (!seg) return;
     const seq = this._selectSeq;
     this.index = i;
+    this.followSegment(seg);
     // front prefers F; the rear slot shows another direction (R first), never
     // the same file as the front.
     const frontDir = seg.videos.F ? "F" : seg.directions.find((d) => seg.videos[d]);

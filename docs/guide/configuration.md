@@ -110,6 +110,7 @@ would delete.
 | --- | --- | --- |
 | `journey_mode` | `progressive` | How map and G-sensor data for a multi-segment journey loads: `progressive` adds each segment's track as playback reaches it; `full` loads the whole journey's track when you select it. |
 | `speed_unit` | `kmh` | `kmh` or `mph`. |
+| `continuous_play` | `false` | When on, a journey plays every back-to-back segment (within 2 minutes of the previous) in time order, whatever its type: normal, event, parking and so on. When off, it plays only segments of the type you selected, skipping the others. |
 
 ### Web
 

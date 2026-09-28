@@ -72,6 +72,68 @@ def test_journey_chain_links_contiguous_same_type_only() -> None:
     ]
 
 
+def _at(ts: str, typ: str) -> RecordingEntry:
+    import datetime
+
+    dt = datetime.datetime.strptime(ts, "%Y%m%d_%H%M%S")
+    return RecordingEntry(ts, typ, dt, ("F",), False, False, False, "")
+
+
+# real pattern from a dr900-series library: an event cuts the normal segment
+# short (a 5 s stub) and takes over the next minute; parking runs into driving
+_DRIVE = [
+    _at("20260929_000156", "P"),
+    _at("20260929_000256", "N"),
+    _at("20260929_001144", "N"),
+    _at("20260929_001149", "E"),
+    _at("20260929_001249", "N"),
+    _at("20260929_001349", "E"),
+    _at("20260929_001449", "E"),
+    _at("20260929_001549", "N"),
+]
+
+
+def test_continuous_chain_plays_every_type_in_time_order() -> None:
+    chain = journey_chain(_DRIVE, "20260929_001144", "N", continuous=True)
+    assert [(e.base_filename[9:], e.type) for e in chain] == [
+        ("001144", "N"),
+        ("001149", "E"),
+        ("001249", "N"),
+        ("001349", "E"),
+        ("001449", "E"),
+        ("001549", "N"),
+    ]
+    # parking into driving is one journey too
+    from_parking = journey_chain(_DRIVE, "20260929_000156", "P", continuous=True)
+    assert [e.type for e in from_parking] == ["P", "N"]
+
+
+def test_same_type_chain_is_unchanged_without_continuous() -> None:
+    """the default skips what lies between segments of the selected type."""
+    chain = journey_chain(_DRIVE, "20260929_001144", "N")
+    # skips the one-minute event, stops at the two-minute one
+    assert [e.base_filename[9:] for e in chain] == ["001144", "001249"]
+    events = journey_chain(_DRIVE, "20260929_001149", "E")
+    # skips the normal minute between the events (120 s apart, inclusive)
+    assert [e.base_filename[9:] for e in events] == ["001149", "001349", "001449"]
+
+
+def test_continuous_chain_skips_a_second_type_at_the_same_instant() -> None:
+    entries = [
+        _at("20260607_101500", "N"),
+        _at("20260607_101500", "E"),
+        _at("20260607_101600", "N"),
+    ]
+    chain = journey_chain(entries, "20260607_101500", "N", continuous=True)
+    assert [(e.base_filename, e.type) for e in chain] == [
+        ("20260607_101500", "N"),
+        ("20260607_101600", "N"),
+    ]
+    # the start is matched on type as well as time
+    started_on_event = journey_chain(entries, "20260607_101500", "E", continuous=True)
+    assert [e.type for e in started_on_event] == ["E", "N"]
+
+
 def test_journey_chain_start_not_found_returns_empty() -> None:
     import datetime
 

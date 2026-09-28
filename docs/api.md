@@ -667,13 +667,14 @@ old rows.
 ## Viewer API
 
 Login required. See `docs/reference/blackvue-file-formats.md` for the underlying
-file formats. `viewer.journey_mode` / `viewer.speed_unit` settings tune the page.
+file formats. `viewer.journey_mode` / `viewer.speed_unit` settings tune the page;
+`viewer.continuous_play` decides whether `/journey` links segments of every type.
 
 | Method | Path | Description |
 | --- | --- | --- |
 | GET | `/api/viewer/days` | `{"days": [{date, count}]}`, newest day first |
 | GET | `/api/viewer/recordings?date=YYYY-MM-DD` | one day's recordings, newest first; without `date`, the newest day |
-| GET | `/api/viewer/recordings/<base>_<type>/journey` | forward chain of contiguous segments |
+| GET | `/api/viewer/recordings/<base>_<type>/journey` | forward chain of contiguous segments (starts within 120 s of the previous); every type with `viewer.continuous_play`, else the start's type only |
 | GET | `/api/viewer/recordings/<base>_<type>/gps` | `{"points": [{t, lat, lon, speed}]}` |
 | GET | `/api/viewer/recordings/<base>_<type>/gsensor` | `{"samples": [{t, x, y, z}]}` |
 | GET | `/media/<path>` | path-safe `.mp4`/`.thm` serving (HTTP Range) |

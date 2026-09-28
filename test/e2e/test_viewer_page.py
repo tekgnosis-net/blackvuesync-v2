@@ -239,3 +239,61 @@ def test_play_button_icon_follows_the_video_state(live_server: Any, page: Page) 
     emit("ended", True)
     expect(play).to_have_attribute("aria-label", "Play")
     expect(play.locator(".icon-play")).to_be_visible()
+
+
+def _continuous_play(live_server: Any) -> None:
+    import dataclasses
+
+    live_server.app.settings_store.update(
+        lambda s: dataclasses.replace(
+            s, viewer=dataclasses.replace(s.viewer, continuous_play=True)
+        )
+    )
+
+
+def test_sidebar_highlight_follows_playback_across_types(
+    live_server: Any, page: Page
+) -> None:
+    dest = live_server.destination
+    for name in ("20260607_101500_NF", "20260607_101600_EF", "20260607_101700_NF"):
+        (dest / f"{name}.mp4").write_bytes(b"\x00")
+    _continuous_play(live_server)
+    _login(page, live_server.url)
+    page.goto(f"{live_server.url}/viewer")
+    with page.expect_response(lambda r: "/journey" in r.url):
+        page.locator('.viewer-rec[data-key="20260607_101500_N"]').click()
+    active = page.locator(".viewer-rec.active")
+    expect(active).to_have_attribute("data-key", "20260607_101500_N")
+
+    page.locator("#viewer-next").click()  # the event segment is part of the drive
+    expect(active).to_have_attribute("data-key", "20260607_101600_E")
+    # auto-advance at the end of a segment moves the highlight too
+    page.evaluate(
+        "document.getElementById('viewer-front').dispatchEvent(new Event('ended'))"
+    )
+    expect(active).to_have_attribute("data-key", "20260607_101700_N")
+    expect(page.locator(".viewer-rec.active")).to_have_count(1)
+
+
+def test_sidebar_opens_a_collapsed_day_when_playback_reaches_it(
+    live_server: Any, page: Page
+) -> None:
+    dest = live_server.destination
+    for name in ("20260609_235930_NF", "20260610_000030_NF"):
+        (dest / f"{name}.mp4").write_bytes(b"\x00")
+    _login(page, live_server.url)
+    page.goto(f"{live_server.url}/viewer")
+    newest = page.locator('.viewer-day[data-date="2026-06-10"] .viewer-day-label')
+    older = page.locator('.viewer-day[data-date="2026-06-09"] .viewer-day-label')
+    expect(newest).to_have_attribute("aria-expanded", "true")  # opened by default
+    older.click()
+    with page.expect_response(lambda r: "/journey" in r.url):
+        page.locator('.viewer-rec[data-key="20260609_235930_N"]').click()
+    newest.click()  # collapses the day the journey continues into
+    expect(newest).to_have_attribute("aria-expanded", "false")
+
+    page.locator("#viewer-next").click()
+    expect(newest).to_have_attribute("aria-expanded", "true")
+    expect(page.locator(".viewer-rec.active")).to_have_attribute(
+        "data-key", "20260610_000030_N"
+    )

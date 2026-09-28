@@ -18,8 +18,8 @@ import time
 
 from blackvuesync_v2.sync import to_recording
 
-# two same-type segments are part of one journey when the next starts within
-# this window of the prior (blackvue writes ~1-minute back-to-back segments).
+# two segments are part of one journey when the next starts within this window
+# of the prior (blackvue writes ~1-minute back-to-back segments).
 _CONTIGUOUS_GAP = datetime.timedelta(seconds=120)
 
 
@@ -278,27 +278,33 @@ def recording_index(destination: str, grouping: str) -> RecordingIndex:
 
 
 def journey_chain(
-    entries: list[RecordingEntry], base_filename: str, rtype: str
+    entries: list[RecordingEntry],
+    base_filename: str,
+    rtype: str,
+    continuous: bool = False,
 ) -> list[RecordingEntry]:
-    """returns the forward chain of contiguous same-type segments from a start."""
-    same_type = sorted(
-        (e for e in entries if e.type == rtype), key=lambda e: e.datetime
+    """returns the forward chain of contiguous segments from a start.
+
+    only segments of the start's type are linked unless `continuous`: blackvue
+    writes an event (E) or parking (P) segment in place of the normal one for
+    that minute, so a drive is only complete across types.
+    """
+    candidates = sorted(
+        (e for e in entries if continuous or e.type == rtype),
+        key=lambda e: (e.datetime, e.type),
     )
     chain: list[RecordingEntry] = []
-    started = False
-    prev: RecordingEntry | None = None
-    for entry in same_type:
-        if not started:
-            if entry.base_filename == base_filename:
-                started, prev, chain = True, entry, [entry]
+    for entry in candidates:
+        if not chain:
+            if entry.base_filename == base_filename and entry.type == rtype:
+                chain.append(entry)
             continue
-        assert prev is not None
-        gap = (entry.datetime - prev.datetime).total_seconds()
-        if 0 < gap <= _CONTIGUOUS_GAP.total_seconds():
-            chain.append(entry)
-            prev = entry
-        else:
+        gap = (entry.datetime - chain[-1].datetime).total_seconds()
+        if gap <= 0:
+            continue  # another type at the same instant does not end the journey
+        if gap > _CONTIGUOUS_GAP.total_seconds():
             break
+        chain.append(entry)
     return chain
 
 

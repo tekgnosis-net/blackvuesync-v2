@@ -82,6 +82,33 @@ def test_journey_chain(client_and_dest: Any) -> None:
     ]
 
 
+def test_journey_includes_other_types_only_with_continuous_play(
+    client_and_dest: Any,
+) -> None:
+    client, dest = client_and_dest
+    (dest / "20260607_101700_EF.mp4").write_bytes(b"x")
+    (dest / "20260607_101800_NF.mp4").write_bytes(b"x")
+    url = "/api/viewer/recordings/20260607_101500_N/journey"
+
+    def segments() -> list[str]:
+        body = json.loads(client.get(url).data)
+        return [s["base_filename"] + "_" + s["type"] for s in body["segments"]]
+
+    # default: the event is skipped and the next normal segment is linked
+    assert segments() == ["20260607_101500_N", "20260607_101600_N", "20260607_101800_N"]
+    client.application.settings_store.update(
+        lambda s: dataclasses.replace(
+            s, viewer=dataclasses.replace(s.viewer, continuous_play=True)
+        )
+    )
+    assert segments() == [
+        "20260607_101500_N",
+        "20260607_101600_N",
+        "20260607_101700_E",
+        "20260607_101800_N",
+    ]
+
+
 def test_gps_and_gsensor_json(client_and_dest: Any) -> None:
     client, _ = client_and_dest
     gps = json.loads(client.get("/api/viewer/recordings/20260607_101500_N/gps").data)
