@@ -12,7 +12,7 @@ repository. Versions 2.2.0 and earlier are the upstream
 [BlackVue Sync](https://github.com/acolomba/blackvuesync) by Alessandro
 Colomba; their numbers refer to upstream pull requests.
 
-## Unreleased
+## 3.1.1 - 2026-09-29
 
 ### Fixed
 
