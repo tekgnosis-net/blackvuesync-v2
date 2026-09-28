@@ -314,6 +314,10 @@ dark mode.
 | `none` | All routes accessible without credentials (trusted-LAN use). |
 | `proxy` | Reverse proxy is expected to authenticate; request is trusted. |
 
+`login_required` sets `g.current_user` (`"anonymous"` in `none` mode) and
+`g.auth_mode`. `base.html` shows the nav and version on every page where
+`g.current_user` is set, and the Sign out button only in `login` mode.
+
 **Argon2 parameters are locked**: `time_cost=3, memory_cost=65536,
 parallelism=4, hash_len=32, salt_len=16`. Do not change without a migration
 plan.

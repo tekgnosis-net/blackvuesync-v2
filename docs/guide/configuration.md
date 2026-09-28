@@ -123,7 +123,7 @@ would delete.
 
 | Field | Default | Description |
 | --- | --- | --- |
-| `mode` | `login` | `login` password, `proxy` trust a reverse proxy header, `none` no authentication. |
+| `mode` | `login` | `login` password, `proxy` trust a reverse proxy header, `none` no authentication. **Sign out** appears only in `login` mode; with `proxy`, sign out at your proxy. |
 | `username` | `admin` | Admin user name. |
 | `trusted_proxies` | *(none)* | `proxy` mode only: proxy IPs or CIDRs, one per line. |
 | `proxy_user_header` | `X-Remote-User` | `proxy` mode only: header carrying the user name. |

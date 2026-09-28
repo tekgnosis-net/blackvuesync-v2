@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import os
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -169,6 +170,64 @@ def test_version_is_shown_in_none_auth_mode(settings_path: Path) -> None:
     )
     with create_app(store, testing=True).test_client() as c:
         assert f"ver: {__version__}".encode() in c.get("/").data
+
+
+# ---------------------------------------------------------------------------
+# header nav and sign-out per auth mode
+# ---------------------------------------------------------------------------
+
+_PAGES = ["/", "/settings", "/logs", "/stats", "/viewer"]
+_NAV = [b'href="/settings"', b'href="/logs"', b'href="/stats"', b'href="/viewer"']
+
+
+def _mode_app(settings_path: Path, **auth: Any) -> Flask:
+    store = _make_store(settings_path)
+    pw_hash = hash_password("some-password-123")
+    store.update(
+        lambda s: dataclasses.replace(
+            s, auth=dataclasses.replace(s.auth, password_hash=pw_hash, **auth)
+        )
+    )
+    return create_app(store, testing=True)
+
+
+def test_none_mode_shows_the_nav_without_sign_out(settings_path: Path) -> None:
+    with _mode_app(settings_path, mode="none").test_client() as c:
+        for path in _PAGES:
+            body = c.get(path).data
+            assert all(link in body for link in _NAV), path
+            assert b"Sign out" not in body, path
+
+
+def test_proxy_mode_shows_the_nav_without_sign_out(settings_path: Path) -> None:
+    app = _mode_app(
+        settings_path,
+        mode="proxy",
+        trusted_proxies=("127.0.0.1",),
+        proxy_user_header="X-Remote-User",
+    )
+    with app.test_client() as c:
+        resp = c.get(
+            "/",
+            headers={"X-Remote-User": "kumar"},
+            environ_base={"REMOTE_ADDR": "127.0.0.1"},
+        )
+        assert resp.status_code == 200
+        assert all(link in resp.data for link in _NAV)
+        assert b"Sign out" not in resp.data  # the proxy owns the session
+
+
+def test_login_mode_shows_the_nav_and_sign_out(logged_in_client: FlaskClient) -> None:
+    for path in _PAGES:
+        body = logged_in_client.get(path).data
+        assert all(link in body for link in _NAV), path
+        assert b"Sign out" in body, path
+
+
+def test_login_page_has_no_nav(anonymous_client: FlaskClient) -> None:
+    body = anonymous_client.get("/login").data
+    assert b'class="site-nav"' not in body
+    assert b"Sign out" not in body
 
 
 # ---------------------------------------------------------------------------
