@@ -7,7 +7,6 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, render_template
 
-from blackvuesync_v2 import __version__
 from blackvuesync_v2.server.auth import login_required
 from blackvuesync_v2.server.log_buffer import verbosity_token
 from blackvuesync_v2.server.routes.api_health import _compute_storage
@@ -61,7 +60,6 @@ def dashboard() -> str:
 
     return render_template(
         "dashboard.html",
-        version=__version__,
         page="dashboard",
         auth_mode=current.auth.mode,
         last_run_html=last_run_html,
@@ -81,7 +79,6 @@ def settings() -> str:
     settings_dict = _settings_to_dict(store.get())  # redacted, per-section _tier
     return render_template(
         "settings.html",
-        version=__version__,
         page="settings",
         sections=build_sections(settings_dict),
     )
@@ -96,7 +93,6 @@ def logs() -> str:
     logging_settings = store.get().logging
     return render_template(
         "logs.html",
-        version=__version__,
         page="logs",
         lines=[dataclasses.asdict(ln) for ln in buf.snapshot()],
         log_file_path=current_app.log_file_path or "",  # type: ignore[attr-defined]
@@ -113,7 +109,6 @@ def stats() -> str:
     recent = list(reversed(store.query()))[:20]  # newest 20 for the no-js fallback
     return render_template(
         "stats.html",
-        version=__version__,
         page="stats",
         recent=recent,
     )
@@ -126,7 +121,6 @@ def viewer() -> str:
     viewer_settings = current_app.settings_store.get().viewer  # type: ignore[attr-defined]
     return render_template(
         "viewer.html",
-        version=__version__,
         page="viewer",
         journey_mode=viewer_settings.journey_mode,
         speed_unit=viewer_settings.speed_unit,

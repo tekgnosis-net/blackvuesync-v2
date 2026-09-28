@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import logging
 import os
 import stat
 import threading
@@ -1141,9 +1142,35 @@ def test_viewer_section_roundtrips_and_defaults_when_absent() -> None:
 
     s = Settings(viewer=dataclasses.replace(Settings().viewer, journey_mode="full"))
     raw = _settings_to_dict(s)
-    assert raw["viewer"] == {"journey_mode": "full", "speed_unit": "kmh"}
+    assert raw["viewer"] == {
+        "journey_mode": "full",
+        "speed_unit": "kmh",
+        "continuous_play": False,
+    }
     assert _settings_from_dict(raw).viewer.journey_mode == "full"
     assert _settings_from_dict({"version": 1}).viewer.journey_mode == "progressive"
+
+
+def test_viewer_continuous_play_defaults_off_and_is_type_checked(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """files written before the field existed load it as off; a non-bool falls back."""
+    from blackvuesync_v2.settings import _settings_from_dict
+
+    older = {"version": 2, "viewer": {"journey_mode": "full", "speed_unit": "kmh"}}
+    assert _settings_from_dict(older).viewer.continuous_play is False
+    assert (
+        _settings_from_dict(
+            {"version": 2, "viewer": {"continuous_play": True}}
+        ).viewer.continuous_play
+        is True
+    )
+    with caplog.at_level(logging.WARNING):
+        loaded = _settings_from_dict(
+            {"version": 2, "viewer": {"continuous_play": "yes"}}
+        )
+    assert loaded.viewer.continuous_play is False
+    assert "viewer.continuous_play" in caplog.text
 
 
 # ---------------------------------------------------------------------------

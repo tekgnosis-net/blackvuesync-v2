@@ -133,11 +133,20 @@ def recordings() -> Response:
 @api_viewer_bp.route("/recordings/<key>/journey", methods=["GET"])
 @login_required
 def journey(key: str) -> Response:
-    """returns the forward chain of contiguous same-type segments from <key>."""
+    """returns the forward chain of contiguous segments from <key>.
+
+    `viewer.continuous_play` links segments of every type; otherwise only the
+    start's type.
+    """
     start = _find(key)
     if start is None:
         abort(404)
-    chain = journey_chain(_index().entries(), start.base_filename, start.type)
+    chain = journey_chain(
+        _index().entries(),
+        start.base_filename,
+        start.type,
+        continuous=_settings().viewer.continuous_play,
+    )
     body = json.dumps({"segments": [_segment_dict(e) for e in chain]})
     return Response(body, status=200, mimetype=_MIME_JSON)
 

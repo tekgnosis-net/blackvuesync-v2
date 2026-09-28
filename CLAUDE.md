@@ -110,7 +110,7 @@ Settings are organized into eleven frozen-dataclass sections (schema
 | logging | immediate | verbose, quiet, format, file_max_bytes, file_backup_count, ring_buffer_capacity |
 | metrics | immediate | file, pushgateway_url, job, instance, state_file |
 | stats | next_tick | retention_days |
-| viewer | immediate | journey_mode, speed_unit |
+| viewer | immediate | journey_mode, speed_unit, continuous_play |
 | web | restart | port, session_lifetime_hours |
 | auth | immediate | mode, username, password_hash, session_secret, trusted_proxies, proxy_user_header |
 | system | restart | destination, dry_run |
@@ -273,7 +273,10 @@ application, structured as follows:
   success rate over reachable runs, `null` when none) both use it.
 - `forecast.py` -- least-squares disk-usage projection for the stats page.
 - `viewer_index.py` -- enumerates downloaded recordings and computes journey
-  chains of contiguous segments. `RecordingIndex` (shared per destination +
+  chains of contiguous segments (same type by default; every type with
+  `viewer.continuous_play`, because BlackVue writes an E/P segment in place of
+  the N one for that minute). The viewer's sidebar highlight follows the
+  playing segment. `RecordingIndex` (shared per destination +
   grouping via `recording_index()`) caches each directory's listing keyed by
   its mtime and re-lists only changed directories; listings younger than the
   2 s racy-mtime window are re-read on the next lookup. Skips `.`, `@` and `#`
@@ -288,6 +291,12 @@ application, structured as follows:
 Front end: Jinja templates under `server/templates/`, with Alpine.js, htmx,
 Chart.js and Leaflet vendored under `server/static/js/` (see `VENDORED.md`).
 No build step; page scripts are plain files in `static/js/`.
+
+Templates get `app_version` as a Jinja global; `base.html` shows it in the
+header and footer only when `g.current_user` is set (every `login_required`
+page, including auth mode `none`), never on the login or first-run pages.
+Chart.js auto-colours a chart only when no dataset sets a colour, so a chart
+that colours one series must colour them all (see `stats.js`).
 
 Colours come from the tokens in `static/css/tokens.css`, which also declares
 `color-scheme: light dark` so native controls follow the system theme. Use the

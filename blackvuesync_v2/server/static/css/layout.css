@@ -60,6 +60,13 @@ body {
   flex-shrink: 0;
 }
 
+.site-version {
+  font-size: var(--text-caption1);
+  color: var(--color-label-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* ---------------------------------------------------------------------------
    site nav
    --------------------------------------------------------------------------- */

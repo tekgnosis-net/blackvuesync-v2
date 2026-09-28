@@ -6,6 +6,16 @@
 const RANGE_DEFAULT = "7d";
 const FAILURE_REASONS = ["http", "network", "timeout", "disk", "unknown"];
 const OFFLINE_COLOR = "rgba(142, 142, 147, 0.45)"; // neutral grey in both themes
+// explicit per-reason colours: chart.js only auto-colours a chart when no
+// dataset sets a colour, and the offline series does. these match the palette
+// the chart had before the offline series existed.
+const REASON_COLORS = {
+  http: "54, 162, 235",
+  network: "255, 99, 132",
+  timeout: "255, 159, 64",
+  disk: "255, 205, 86",
+  unknown: "75, 192, 192",
+};
 const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB"];
 
 function fmtBytes(n) {
@@ -40,6 +50,8 @@ function failureDatasets(points) {
   const reasons = FAILURE_REASONS.map((reason) => ({
     label: reason,
     data: points.map((p) => (p.offline ? 0 : p.failures?.[reason] ?? 0)),
+    backgroundColor: "rgba(" + REASON_COLORS[reason] + ", 0.5)",
+    borderColor: "rgb(" + REASON_COLORS[reason] + ")",
   }));
   reasons.push({
     label: "dashcam offline",

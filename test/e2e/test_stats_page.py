@@ -128,3 +128,46 @@ def test_success_rate_shows_dash_when_nothing_reached_the_dashcam(
     page.goto(f"{live_server.url}/stats")
     expect(page.locator("[data-summary-offline]")).to_have_text("2")
     expect(page.locator("[data-summary-success]")).to_have_text("--")
+
+
+def test_every_failure_reason_has_its_own_colour(live_server: Any, page: Page) -> None:
+    """an explicitly coloured series disables chart.js's automatic palette for
+    the whole chart, so each reason must carry its own colour."""
+    body = _series(
+        {
+            "runs": 2,
+            "offline": 1,
+            "reachable_runs": 1,
+            "bytes": 0,
+            "avg_duration_seconds": 1.0,
+            "success_rate": 0.0,
+        },  # fmt: skip
+        [
+            _point(
+                1_700_000_000,
+                False,
+                {"http": 1, "network": 1, "timeout": 1, "disk": 1, "unknown": 1},
+            ),
+            _point(1_700_000_900, True, {"network": 1}),
+        ],  # fmt: skip
+    )
+    page.route(
+        "**/api/stats/series*",
+        lambda r: r.fulfill(status=200, content_type="application/json", body=body),
+    )
+    _login(page, live_server.url)
+    page.goto(f"{live_server.url}/stats")
+    expect(page.locator("[data-summary-offline]")).to_have_text("1")
+    # the colours chart.js resolved for the drawn bars, not just the config
+    colours = dict(
+        page.evaluate(
+            "() => { const c = Chart.getChart(document.querySelector("
+            "'[data-chart=\"failures\"]'));"
+            " return c.data.datasets.map((d, i) =>"
+            " [d.label, c.getDatasetMeta(i).data[0].options.backgroundColor]); }"
+        )
+    )
+    reasons = [colours[r] for r in ("http", "network", "timeout", "disk", "unknown")]
+    assert len(set(reasons)) == 5, colours
+    assert "rgba(0,0,0,0.1)" not in reasons  # chart.js's uncoloured default
+    assert colours["dashcam offline"] not in reasons

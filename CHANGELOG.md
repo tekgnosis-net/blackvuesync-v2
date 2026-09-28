@@ -12,6 +12,28 @@ repository. Versions 2.2.0 and earlier are the upstream
 [BlackVue Sync](https://github.com/acolomba/blackvuesync) by Alessandro
 Colomba; their numbers refer to upstream pull requests.
 
+## Unreleased
+
+### Added
+
+* **Continuous play** (Settings → Viewer): plays every back-to-back segment of
+  a drive in time order, whatever its type. BlackVue records an event (E) or
+  parking (P) segment in place of the normal one for that minute, so the
+  default, which plays only segments of the type you selected, skipped them.
+  Off by default; see
+  [Configuration](https://tekgnosis-net.github.io/blackvuesync-v2/guide/configuration/#viewer).
+* The release version is shown next to the title on every page once signed
+  in (`ver: 3.1.0`). The sign-in page does not show it.
+
+### Fixed
+
+* The viewer's sidebar now follows playback: the highlight moves to the
+  segment that is playing, including after auto-advance and **Next segment**,
+  and opens the next day when a drive crosses midnight.
+* The statistics "failures by reason" chart showed every reason in grey since
+  3.0.2. Each reason has its own colour again (http blue, network red, timeout
+  orange, disk yellow, unknown teal); dashcam offline stays grey.
+
 ## 3.0.3 - 2026-09-29
 
 ### Fixed

@@ -12,6 +12,7 @@ from flask import Flask, Response, request
 from flask_wtf.csrf import CSRFProtect
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from blackvuesync_v2 import __version__
 from blackvuesync_v2.server.log_buffer import BOOT_ID, LogBuffer
 from blackvuesync_v2.server.progress import ProgressPublisher
 from blackvuesync_v2.server.stats_store import StatsStore
@@ -46,6 +47,7 @@ def create_app(  # pylint: disable=too-many-locals,too-many-arguments,too-many-p
     app.log_file_path = log_file_path  # type: ignore[attr-defined]
     # lets the logs page detect a server restart (seq restarts per process).
     app.jinja_env.globals["log_boot_id"] = BOOT_ID
+    app.jinja_env.globals["app_version"] = __version__
     # attaches the stats store, or an empty in-memory store so route/page
     # handlers always have one even when serve mode did not supply it.
     app.stats_store = stats_store or StatsStore(":memory:")  # type: ignore[attr-defined]

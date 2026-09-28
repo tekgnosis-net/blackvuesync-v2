@@ -11,9 +11,13 @@
   {% block extra_css %}{% endblock %}
 </head>
 <body data-state="{% block data_state %}idle{% endblock %}">
+  {#- login_required sets g.current_user (also in "none" auth mode), so the
+      login and first-run pages do not show the version #}
+  {% set show_version = g.current_user is defined %}
   <header class="site-header">
     <div class="header-inner">
       <a class="site-title" href="{{ url_for('ui_bp.dashboard') }}">BlackVue Sync v2</a>
+      {% if show_version %}<span class="site-version">ver: {{ app_version }}</span>{% endif %}
       {% if g.current_user is defined and g.current_user != 'anonymous' %}
       <nav class="site-nav">
         <a href="{{ url_for('ui_bp.dashboard') }}" class="nav-link {% if page == 'dashboard' %}active{% endif %}">Dashboard</a>
@@ -36,7 +40,7 @@
 
   <footer class="site-footer">
     <div class="footer-inner">
-      <span class="footer-text">BlackVue Sync v2 {% block footer_version %}{% endblock %}</span>
+      <span class="footer-text">BlackVue Sync v2{% if show_version %} {{ app_version }}{% endif %}</span>
     </div>
   </footer>
 

@@ -510,6 +510,8 @@ class ViewerSettings(_Section):
 
     journey_mode: Literal["progressive", "full"] = "progressive"
     speed_unit: Literal["kmh", "mph"] = "kmh"
+    # chains back-to-back segments of every type (normal, event, parking...)
+    continuous_play: bool = False
 
     def _validate_values(self) -> list[str]:
         """validates viewer settings; returns a list of error strings."""

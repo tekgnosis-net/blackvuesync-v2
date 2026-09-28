@@ -11,6 +11,7 @@ import pytest
 from flask import Flask
 from flask.testing import FlaskClient
 
+from blackvuesync_v2 import __version__
 from blackvuesync_v2.server import create_app
 from blackvuesync_v2.server.auth import (
     SESSION_VERSION_KEY,
@@ -133,6 +134,41 @@ def test_ui_routes_accessible_without_login_in_none_mode(
         for path in ["/", "/settings", "/logs", "/stats", "/viewer"]:
             r = c.get(path)
             assert r.status_code == 200, f"expected 200 for {path}, got {r.status_code}"
+
+
+# ---------------------------------------------------------------------------
+# release version next to the title
+# ---------------------------------------------------------------------------
+
+
+def test_every_page_shows_the_version_next_to_the_title(
+    logged_in_client: FlaskClient,
+) -> None:
+    label = f'<span class="site-version">ver: {__version__}</span>'.encode()
+    for path in ["/", "/settings", "/logs", "/stats", "/viewer"]:
+        body = logged_in_client.get(path).data
+        assert label in body, path
+        assert f"BlackVue Sync v2 {__version__}</span>".encode() in body, path
+
+
+def test_login_page_does_not_disclose_the_version(
+    anonymous_client: FlaskClient,
+) -> None:
+    body = anonymous_client.get("/login").data
+    assert b"site-version" not in body
+    assert __version__.encode() not in body
+
+
+def test_version_is_shown_in_none_auth_mode(settings_path: Path) -> None:
+    store = _make_store(settings_path)
+    pw_hash = hash_password("some-password-123")
+    store.update(
+        lambda s: dataclasses.replace(
+            s, auth=dataclasses.replace(s.auth, mode="none", password_hash=pw_hash)
+        )
+    )
+    with create_app(store, testing=True).test_client() as c:
+        assert f"ver: {__version__}".encode() in c.get("/").data
 
 
 # ---------------------------------------------------------------------------
