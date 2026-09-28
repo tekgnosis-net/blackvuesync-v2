@@ -140,7 +140,7 @@ BlackVue Sync can be obtained in a number of ways:
 
 * **[uv](https://docs.astral.sh/uv/)**: Run with `uvx --from git+https://github.com/tekgnosis-net/blackvuesync blackvuesync <args>`, or install with `uv tool install git+https://github.com/tekgnosis-net/blackvuesync` and run with `blackvuesync <args>`.
 * **[Pip](https://pypi.org/project/pip/):** Install with `pip install "git+https://github.com/tekgnosis-net/blackvuesync"` and run with `blackvuesync <args>`.
-* **From source:** Clone the repository and run `python3 -m blackvuesync <args>`.
+* **From source:** Clone the repository and run `python3 -m blackvuesync_v2 <args>`.
 * **GHCR:** The [Docker image](https://github.com/tekgnosis-net/blackvuesync/pkgs/container/blackvuesync) can be pulled with `docker pull ghcr.io/tekgnosis-net/blackvuesync`.
 
 The interactive instructions assume a uv or Pip installation.
@@ -200,7 +200,7 @@ Other options:
 * `--metrics-pushgateway-url`: Pushes Prometheus text format metrics to the given Pushgateway URL.
 * `--metrics-job`: Sets the Pushgateway job grouping value. Defaults to `blackvuesync`.
 * `--metrics-instance`: Sets the Pushgateway instance grouping value. Defaults to the dashcam address.
-* `--metrics-state-file`: Persists cross-run metrics state at the given path. Defaults to `.blackvuesync.metrics-state.json` under the destination when metrics are enabled.
+* `--metrics-state-file`: Persists cross-run metrics state at the given path. Defaults to `.blackvuesync_v2.metrics-state.json` under the destination when metrics are enabled.
 
 #### Recording type and direction codes
 
@@ -270,7 +270,7 @@ blackvuesync dashcam.example.net --destination /data/dashcam --cron --metrics-pu
 ```
 
 Metrics are opt-in. When enabled, BlackVueSync persists the last successful file
-pull timestamp in `.blackvuesync.metrics-state.json` under the destination
+pull timestamp in `.blackvuesync_v2.metrics-state.json` under the destination
 unless `--metrics-state-file` is set. Metrics delivery failures are logged as
 warnings and do not replace the sync exit result.
 Run-level failures such as dashcam index timeouts are exposed through

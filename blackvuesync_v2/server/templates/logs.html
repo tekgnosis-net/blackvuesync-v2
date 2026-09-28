@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Logs -- BlackVue Sync v2{% endblock %}
+{% block footer_version %}{{ version }}{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/logs.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="logs-page" x-data="logsPage"
+     data-verbosity="{{ verbosity }}" data-capacity="{{ capacity }}"
+     data-boot-id="{{ log_boot_id }}">
+  <div class="logs-toolbar">
+    <fieldset class="logs-levels" aria-label="Minimum level">
+      <button type="button" class="logs-level-btn active" data-level="DEBUG" @click="setLevel">Debug</button>
+      <button type="button" class="logs-level-btn" data-level="INFO" @click="setLevel">Info</button>
+      <button type="button" class="logs-level-btn" data-level="WARNING" @click="setLevel">Warning</button>
+      <button type="button" class="logs-level-btn" data-level="ERROR" @click="setLevel">Error</button>
+    </fieldset>
+    <input type="search" class="logs-search" placeholder="Filter visible lines"
+           aria-label="Filter log lines" @input="onSearch">
+    <fieldset class="logs-verbosity" aria-label="Capture verbosity">
+      <button type="button" class="logs-verb-btn{% if verbosity == 'quiet' %} active{% endif %}" data-verbosity="quiet" @click="setVerbosity">Quiet</button>
+      <button type="button" class="logs-verb-btn{% if verbosity == 'normal' %} active{% endif %}" data-verbosity="normal" @click="setVerbosity">Normal</button>
+      <button type="button" class="logs-verb-btn{% if verbosity == 'verbose' %} active{% endif %}" data-verbosity="verbose" @click="setVerbosity">Verbose</button>
+      <button type="button" class="logs-verb-btn{% if verbosity == 'debug' %} active{% endif %}" data-verbosity="debug" @click="setVerbosity">Debug</button>
+    </fieldset>
+    <button type="button" class="button button-secondary button-sm" @click="togglePause" x-text="pauseLabel"></button>
+    <button type="button" class="button button-secondary button-sm" @click="clearView">Clear</button>
+  </div>
+
+  <p class="logs-error" role="alert" x-show="error" x-text="error"></p>
+
+  <div class="logs-pane" data-pane>
+    {% for ln in lines %}
+    <div class="log-row" data-level="{{ ln.level }}" data-level-no="{{ ln.level_no }}" data-seq="{{ ln.seq }}">
+      <span class="log-ts">{{ ln.ts }}</span>
+      <span class="log-level log-level-{{ ln.level }}">{{ ln.level }}</span>
+      <span class="log-logger">{{ ln.logger }}</span>
+      <span class="log-msg">{{ ln.message }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="logs-empty" data-empty {% if lines %}hidden{% endif %}>No log lines yet.</p>
+
+  <p class="logs-filepath">
+    Log file on host: <code>{{ log_file_path or "stdout only (file logging disabled)" }}</code>
+  </p>
+  <noscript>
+    <p class="logs-note">JavaScript is required for live streaming; showing the most recent buffered lines.</p>
+  </noscript>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{{ url_for('static', filename='js/logs.js') }}" defer></script>
+{% endblock %}

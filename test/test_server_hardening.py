@@ -16,16 +16,16 @@ from flask import Flask
 from flask.testing import FlaskClient
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from blackvuesync.server import auth as auth_module
-from blackvuesync.server import create_app
-from blackvuesync.server.auth import (
+from blackvuesync_v2.server import auth as auth_module
+from blackvuesync_v2.server import create_app
+from blackvuesync_v2.server.auth import (
     SESSION_VERSION_KEY,
     hash_password,
     is_trusted_proxy,
     session_version,
 )
-from blackvuesync.server.log_buffer import BOOT_ID
-from blackvuesync.settings import SettingsStore
+from blackvuesync_v2.server.log_buffer import BOOT_ID
+from blackvuesync_v2.settings import SettingsStore
 
 _PASSWORD = "test-password-1234"
 
@@ -172,7 +172,7 @@ def test_rate_limiter_prunes_stale_and_caps_entries() -> None:
     clock = [1000.0]
     with (
         patch.object(auth_module, "_MAX_TRACKED_IPS", 5),
-        patch("blackvuesync.server.auth.time.monotonic", lambda: clock[0]),
+        patch("blackvuesync_v2.server.auth.time.monotonic", lambda: clock[0]),
     ):
         for i in range(20):
             auth_module.record_login_failure(f"10.0.0.{i}")
@@ -190,7 +190,7 @@ def test_rate_limiter_prunes_stale_and_caps_entries() -> None:
 def test_rate_limiter_trims_old_timestamps_per_ip() -> None:
     """verifies one ip's deque only keeps timestamps inside the window."""
     clock = [1000.0]
-    with patch("blackvuesync.server.auth.time.monotonic", lambda: clock[0]):
+    with patch("blackvuesync_v2.server.auth.time.monotonic", lambda: clock[0]):
         for _ in range(5):
             auth_module.record_login_failure("10.0.0.1")
         clock[0] += auth_module._FAILURE_WINDOW_SECONDS + 1  # noqa: SLF001
@@ -358,7 +358,7 @@ def test_first_run_does_not_overwrite_concurrent_winner(tmp_path: Path) -> None:
         )
         return real_hash(plaintext)
 
-    with patch("blackvuesync.server.routes.auth.hash_password", _racing_hash):
+    with patch("blackvuesync_v2.server.routes.auth.hash_password", _racing_hash):
         resp = app.test_client().post(
             "/first-run",
             data={

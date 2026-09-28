@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from blackvuesync.settings import SettingsStore
+from blackvuesync_v2.settings import SettingsStore
 
 
 @pytest.fixture()
@@ -31,7 +31,7 @@ def _run_cmd_serve(settings_path: Path) -> tuple[Any, Any, Any, Any]:
 
     returns the four mocks so each test can assert call args.
     """
-    from blackvuesync.__main__ import cmd_serve
+    from blackvuesync_v2.__main__ import cmd_serve
 
     args = argparse.Namespace(
         port=None,
@@ -39,10 +39,10 @@ def _run_cmd_serve(settings_path: Path) -> tuple[Any, Any, Any, Any]:
     )
     with (
         patch.dict(os.environ, {"ADDRESS": "192.168.0.1"}, clear=False),
-        patch("blackvuesync.__main__.configure_logging") as mock_cfg,
-        patch("blackvuesync.__main__.set_logging_levels") as mock_set,
+        patch("blackvuesync_v2.__main__.configure_logging") as mock_cfg,
+        patch("blackvuesync_v2.__main__.set_logging_levels") as mock_set,
         patch("waitress.serve") as mock_waitress,
-        patch("blackvuesync.server.scheduler.init_scheduler") as mock_init,
+        patch("blackvuesync_v2.server.scheduler.init_scheduler") as mock_init,
     ):
         mock_waitress.return_value = None
         cmd_serve(args)

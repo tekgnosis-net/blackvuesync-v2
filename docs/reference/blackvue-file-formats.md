@@ -21,7 +21,7 @@ YYYYMMDD_HHMMSS_<type><direction>[upload].<ext>
 | `[upload]` | optional `L` (live) / `S` (substream) flag |
 | `<ext>` | `mp4` \| `thm` \| `3gf` \| `gps` |
 
-The filename regex lives in `blackvuesync/sync.py` (`filename_re`) and is parsed into a
+The filename regex lives in `blackvuesync_v2/sync.py` (`filename_re`) and is parsed into a
 `Recording` dataclass by `to_recording()`.
 
 ### Per-recording-instant file set
@@ -43,7 +43,7 @@ direction letter; they share a single `.gps` and `.3gf`.
 A video listed with an upload flag (e.g. `20260607_101500_NFL.mp4`) is stored under
 that exact name, but `sync.py` stores its thumbnail and sidecars **without** the flag
 (`20260607_101500_NF.thm`, `20260607_101500_N.gps`, `20260607_101500_N.3gf`). The
-viewer index (`blackvuesync/server/viewer_index.py`) therefore keeps the real
+viewer index (`blackvuesync_v2/server/viewer_index.py`) therefore keeps the real
 on-disk `.mp4` name per direction and builds video URLs from it; it looks up the
 thumbnail under the unflagged name first, then the flagged one. When both a flagged
 and an unflagged video exist for one direction, the unflagged one is used.
@@ -59,7 +59,7 @@ and an unflagged video exist for one direction, the unflagged one is used.
 | `R` | Manual backup (clips saved while reviewing) |
 | `T` | Timelapse |
 
-`blackvuesync/sync.py` recognizes a broader set across models
+`blackvuesync_v2/sync.py` recognizes a broader set across models
 (`NEPMIOATBRXGDLYF`: e.g. `I` impact, `O` overspeed, `A` acceleration, `B` braking,
 `R`/`X`/`G` geofence, `D`/`L`/`Y`/`F` DMS). The viewer displays the letter plus a
 best-effort label.
@@ -116,7 +116,7 @@ best-effort label.
   vector magnitude 1.025 g when stationary ≈ gravity) and
   `bartbroere/blackvue-acc` (`blackvue_acc.py`: `/ 128  # 1G is assumed to be
   128 as integer`). The implementation lives in
-  `blackvuesync/server/gsensor.py` (`SCALE_G = 128.0`).
+  `blackvuesync_v2/server/gsensor.py` (`SCALE_G = 128.0`).
 
 ## `.thm` -- thumbnail
 

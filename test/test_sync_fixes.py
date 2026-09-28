@@ -19,10 +19,10 @@ from unittest.mock import patch
 
 import pytest
 
-import blackvuesync.server.sync_runner as runner
-import blackvuesync.sync as _sync
-from blackvuesync.metrics import SyncMetrics
-from blackvuesync.server.progress import ProgressPublisher
+import blackvuesync_v2.server.sync_runner as runner
+import blackvuesync_v2.sync as _sync
+from blackvuesync_v2.metrics import SyncMetrics
+from blackvuesync_v2.server.progress import ProgressPublisher
 
 _PAYLOAD = bytes(i % 256 for i in range(7000))
 _FILENAME = "20230101_120000_NF.mp4"

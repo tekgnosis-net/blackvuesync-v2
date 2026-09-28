@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}BlackVue Sync v2{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body data-state="{% block data_state %}idle{% endblock %}">
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="site-title" href="{{ url_for('ui_bp.dashboard') }}">BlackVue Sync v2</a>
+      {% if g.current_user is defined and g.current_user != 'anonymous' %}
+      <nav class="site-nav">
+        <a href="{{ url_for('ui_bp.dashboard') }}" class="nav-link {% if page == 'dashboard' %}active{% endif %}">Dashboard</a>
+        <a href="{{ url_for('ui_bp.settings') }}" class="nav-link {% if page == 'settings' %}active{% endif %}">Settings</a>
+        <a href="{{ url_for('ui_bp.logs') }}" class="nav-link {% if page == 'logs' %}active{% endif %}">Logs</a>
+        <a href="{{ url_for('ui_bp.stats') }}" class="nav-link {% if page == 'stats' %}active{% endif %}">Stats</a>
+        <a href="{{ url_for('ui_bp.viewer') }}" class="nav-link {% if page == 'viewer' %}active{% endif %}">Viewer</a>
+      </nav>
+      <form method="post" action="{{ url_for('auth_bp.logout') }}" class="logout-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="button button-secondary button-sm">Sign out</button>
+      </form>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="site-main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span class="footer-text">BlackVue Sync v2 {% block footer_version %}{% endblock %}</span>
+    </div>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/htmx.min.js') }}" defer></script>
+  {% block extra_js %}{% endblock %}
+  <script src="{{ url_for('static', filename='js/alpine.min.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-"""tests for the APScheduler integration in blackvuesync.server.scheduler."""
+"""tests for the APScheduler integration in blackvuesync_v2.server.scheduler."""
 
 from __future__ import annotations
 
@@ -11,9 +11,9 @@ from unittest.mock import patch
 
 import pytest
 
-from blackvuesync.server.progress import ProgressPublisher
-from blackvuesync.server.scheduler import _JOB_ID, build_cron_trigger, init_scheduler
-from blackvuesync.settings import SettingsStore
+from blackvuesync_v2.server.progress import ProgressPublisher
+from blackvuesync_v2.server.scheduler import _JOB_ID, build_cron_trigger, init_scheduler
+from blackvuesync_v2.settings import SettingsStore
 
 
 @pytest.fixture()
@@ -179,13 +179,13 @@ class TestScheduledRun:
     def test_skips_when_sync_already_running(self, settings_path: Path) -> None:
         """when trigger_sync returns already_running, _scheduled_run logs and
         does not raise."""
-        from blackvuesync.server.scheduler import _scheduled_run
+        from blackvuesync_v2.server.scheduler import _scheduled_run
 
         store = _make_store(settings_path)
         publisher = ProgressPublisher()
 
         with patch(
-            "blackvuesync.server.scheduler.trigger_sync",
+            "blackvuesync_v2.server.scheduler.trigger_sync",
             return_value={"status": "already_running", "job_id": "abc123"},
         ):
             # must not raise
@@ -195,13 +195,13 @@ class TestScheduledRun:
         self, settings_path: Path
     ) -> None:
         """_scheduled_run reads settings fresh from the store on each tick."""
-        from blackvuesync.server.scheduler import _scheduled_run
+        from blackvuesync_v2.server.scheduler import _scheduled_run
 
         store = _make_store(settings_path)
         publisher = ProgressPublisher()
 
         with patch(
-            "blackvuesync.server.scheduler.trigger_sync",
+            "blackvuesync_v2.server.scheduler.trigger_sync",
             return_value={"status": "started", "job_id": "deadbeef"},
         ) as mock_trigger:
             _scheduled_run(store, publisher)
@@ -216,14 +216,14 @@ class TestScheduledRun:
         the next scheduled tick still fires (verified at the contract level: we
         do not catch in _scheduled_run; APScheduler's job-error logging takes
         over)."""
-        from blackvuesync.server.scheduler import _scheduled_run
+        from blackvuesync_v2.server.scheduler import _scheduled_run
 
         store = _make_store(settings_path)
         publisher = ProgressPublisher()
 
         with (
             patch(
-                "blackvuesync.server.scheduler.trigger_sync",
+                "blackvuesync_v2.server.scheduler.trigger_sync",
                 side_effect=RuntimeError("connection refused"),
             ),
             pytest.raises(RuntimeError, match="connection refused"),

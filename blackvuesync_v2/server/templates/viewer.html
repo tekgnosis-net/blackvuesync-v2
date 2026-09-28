@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Viewer -- BlackVue Sync v2{% endblock %}
+{% block footer_version %}{{ version }}{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/leaflet.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/viewer.css') }}">
+{% endblock %}
+
+{% block content %}
+<div id="viewer-app" class="viewer" data-journey-mode="{{ journey_mode }}" data-speed-unit="{{ speed_unit }}">
+  <aside class="viewer-sidebar" id="viewer-recordings" aria-label="Recordings"></aside>
+
+  <section class="viewer-main">
+    <div id="viewer-error" class="alert alert-error" role="alert" hidden></div>
+    <div class="viewer-player" data-layout="pip">
+      <video id="viewer-front" class="viewer-video viewer-video-primary" playsinline></video>
+      <video id="viewer-rear" class="viewer-video viewer-video-secondary" playsinline muted></video>
+    </div>
+
+    <div class="viewer-transport">
+      <button type="button" id="viewer-play" class="viewer-btn">Play</button>
+      <input type="range" id="viewer-seek" class="viewer-seek" min="0" max="1000" value="0" aria-label="Seek">
+      <span id="viewer-time" class="viewer-time">0:00 / 0:00</span>
+      <button type="button" id="viewer-layout" class="viewer-btn">Side-by-side</button>
+      <button type="button" id="viewer-swap" class="viewer-btn">Swap</button>
+      <button type="button" id="viewer-next" class="viewer-btn">Next segment</button>
+    </div>
+
+    <div class="viewer-telemetry">
+      <div id="viewer-map" class="viewer-map" aria-label="GPS map"></div>
+      <div class="viewer-gauges">
+        <div class="viewer-speed"><span id="viewer-speed-value">--</span> <span id="viewer-speed-unit">{{ speed_unit }}</span></div>
+        <canvas id="viewer-gsensor" class="viewer-gsensor" height="90" aria-label="G-sensor chart"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <noscript><p class="viewer-note">The dashcam viewer requires JavaScript.</p></noscript>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{{ url_for('static', filename='js/leaflet.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/chart.umd.min.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/viewer.js') }}" defer></script>
+{% endblock %}

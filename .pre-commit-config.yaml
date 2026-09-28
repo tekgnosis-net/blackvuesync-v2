@@ -8,7 +8,7 @@ repos:
       - id: fix-byte-order-marker
       - id: mixed-line-ending
         args: ['--fix=lf']
-        files: '(\.sh|blackvuesync/.*\.py|crontab)$'
+        files: '(\.sh|blackvuesync_v2/.*\.py|crontab)$'
       - id: check-case-conflict
       - id: check-merge-conflict
       - id: check-symlinks
@@ -83,7 +83,7 @@ repos:
     rev: v3.3.9
     hooks:
       - id: pylint
-        files: ^blackvuesync/.*\.py$
+        files: ^blackvuesync_v2/.*\.py$
         additional_dependencies:
           - flask~=3.1
           - flask-wtf~=1.2

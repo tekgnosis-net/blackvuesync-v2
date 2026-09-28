@@ -13,10 +13,14 @@ from unittest.mock import patch
 
 import pytest
 
-from blackvuesync.server import create_app
-from blackvuesync.server.auth import SESSION_VERSION_KEY, hash_password, session_version
-from blackvuesync.server.progress import ProgressPublisher
-from blackvuesync.settings import SettingsStore
+from blackvuesync_v2.server import create_app
+from blackvuesync_v2.server.auth import (
+    SESSION_VERSION_KEY,
+    hash_password,
+    session_version,
+)
+from blackvuesync_v2.server.progress import ProgressPublisher
+from blackvuesync_v2.settings import SettingsStore
 
 # manual smoke test:
 #   with the server running, authenticate at /login, then:
@@ -147,7 +151,7 @@ class TestTriggerNow:
 
     def test_returns_202_and_job_id_on_success(self, logged_in_client: Any) -> None:
         client, pub = logged_in_client
-        with patch("blackvuesync.server.sync_runner._do_sync") as mock_sync:
+        with patch("blackvuesync_v2.server.sync_runner._do_sync") as mock_sync:
 
             def _stub(
                 _s: Any,
@@ -189,7 +193,9 @@ class TestTriggerNow:
             proceed.wait(timeout=5.0)
             p.end_job(success=True)
 
-        with patch("blackvuesync.server.sync_runner._do_sync", side_effect=_slow_sync):
+        with patch(
+            "blackvuesync_v2.server.sync_runner._do_sync", side_effect=_slow_sync
+        ):
             resp1 = client.post("/api/sync/now")
             started.wait(timeout=2.0)
             resp2 = client.post("/api/sync/now")
@@ -391,7 +397,7 @@ class TestStopSync:
         # put the publisher into a running state
         pub.begin_job(5)
 
-        from blackvuesync.sync import clear_stop, is_stop_requested
+        from blackvuesync_v2.sync import clear_stop, is_stop_requested
 
         clear_stop()
         try:

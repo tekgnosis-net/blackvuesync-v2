@@ -6,7 +6,7 @@ import logging
 import threading
 import time
 
-from blackvuesync.server.log_buffer import LogBuffer, LogLine, verbosity_token
+from blackvuesync_v2.server.log_buffer import LogBuffer, LogLine, verbosity_token
 
 
 def _record(
@@ -122,7 +122,7 @@ def test_subscribe_heartbeat_yields_empty_list_quickly() -> None:
 
 
 def test_build_file_handler_creates_logs_dir(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    from blackvuesync.__main__ import _build_file_handler
+    from blackvuesync_v2.__main__ import _build_file_handler
 
     class _L:
         format = "text"
@@ -145,8 +145,8 @@ def test_reconfigure_serve_logging_resizes_buffer(tmp_path) -> None:  # type: ig
     import os as _os
     from unittest.mock import patch as _patch
 
-    from blackvuesync.__main__ import _build_file_handler, _reconfigure_serve_logging
-    from blackvuesync.settings import SettingsStore
+    from blackvuesync_v2.__main__ import _build_file_handler, _reconfigure_serve_logging
+    from blackvuesync_v2.settings import SettingsStore
 
     with _patch.dict(_os.environ, {"ADDRESS": "192.168.0.1"}, clear=False):
         store = SettingsStore(tmp_path / "settings.json")
@@ -168,8 +168,8 @@ def test_reconfigure_serve_logging_swaps_file_handler(tmp_path) -> None:  # type
     import os as _os
     from unittest.mock import patch as _patch
 
-    from blackvuesync.__main__ import _build_file_handler, _reconfigure_serve_logging
-    from blackvuesync.settings import SettingsStore
+    from blackvuesync_v2.__main__ import _build_file_handler, _reconfigure_serve_logging
+    from blackvuesync_v2.settings import SettingsStore
 
     with _patch.dict(_os.environ, {"ADDRESS": "192.168.0.1"}, clear=False):
         store = SettingsStore(tmp_path / "settings.json")

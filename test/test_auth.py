@@ -1,4 +1,4 @@
-"""tests for blackvuesync.server.auth module."""
+"""tests for blackvuesync_v2.server.auth module."""
 
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ import pytest
 from flask import Flask
 from flask.testing import FlaskClient
 
-from blackvuesync.server import create_app
-from blackvuesync.server.auth import (
+from blackvuesync_v2.server import create_app
+from blackvuesync_v2.server.auth import (
     SESSION_VERSION_KEY,
     _failure_timestamps,
     _locked_until,
@@ -25,7 +25,7 @@ from blackvuesync.server.auth import (
     session_version,
     verify_password,
 )
-from blackvuesync.settings import SettingsStore
+from blackvuesync_v2.settings import SettingsStore
 
 # ---------------------------------------------------------------------------
 # fixtures
@@ -149,13 +149,13 @@ def test_old_failures_expire_after_window() -> None:
     ip = "10.0.0.5"
     # record 11 failures at time 0
     base_time = 1000.0
-    with patch("blackvuesync.server.auth.time") as mock_time:
+    with patch("blackvuesync_v2.server.auth.time") as mock_time:
         mock_time.monotonic.return_value = base_time
         for _ in range(11):
             record_login_failure(ip)
 
     # advance time past the window (600s) and past the lockout (900s)
-    with patch("blackvuesync.server.auth.time") as mock_time:
+    with patch("blackvuesync_v2.server.auth.time") as mock_time:
         mock_time.monotonic.return_value = base_time + 1000
         assert is_login_locked_out(ip) is False
 
@@ -170,14 +170,14 @@ def test_lockout_persists_within_duration() -> None:
     ip = "10.1.0.1"
     base_time = 5000.0
     # record 10 failures to trigger lockout
-    with patch("blackvuesync.server.auth.time") as mock_time:
+    with patch("blackvuesync_v2.server.auth.time") as mock_time:
         mock_time.monotonic.return_value = base_time
         for _ in range(10):
             record_login_failure(ip)
         assert is_login_locked_out(ip) is True
 
     # 14 minutes later (840s < 900s lockout) -- still locked
-    with patch("blackvuesync.server.auth.time") as mock_time:
+    with patch("blackvuesync_v2.server.auth.time") as mock_time:
         mock_time.monotonic.return_value = base_time + 840
         assert is_login_locked_out(ip) is True
 
@@ -186,13 +186,13 @@ def test_lockout_expires_after_duration() -> None:
     """verifies the lockout expires after the lockout duration (900s)."""
     ip = "10.1.0.2"
     base_time = 5000.0
-    with patch("blackvuesync.server.auth.time") as mock_time:
+    with patch("blackvuesync_v2.server.auth.time") as mock_time:
         mock_time.monotonic.return_value = base_time
         for _ in range(10):
             record_login_failure(ip)
 
     # 16 minutes later (960s > 900s lockout) -- no longer locked
-    with patch("blackvuesync.server.auth.time") as mock_time:
+    with patch("blackvuesync_v2.server.auth.time") as mock_time:
         mock_time.monotonic.return_value = base_time + 960
         assert is_login_locked_out(ip) is False
 
@@ -201,7 +201,7 @@ def test_eleventh_failure_does_not_reset_lockout_start() -> None:
     """verifies a lockout set at N=10 is still respected after an 11th failure."""
     ip = "10.1.0.3"
     base_time = 5000.0
-    with patch("blackvuesync.server.auth.time") as mock_time:
+    with patch("blackvuesync_v2.server.auth.time") as mock_time:
         mock_time.monotonic.return_value = base_time
         for _ in range(11):
             record_login_failure(ip)
@@ -209,7 +209,7 @@ def test_eleventh_failure_does_not_reset_lockout_start() -> None:
     # just past the first lockout window (900s): if the 11th failure extended
     # it we might still be locked; the implementation records lockout at the
     # 10th failure so 960s from base should be clear.
-    with patch("blackvuesync.server.auth.time") as mock_time:
+    with patch("blackvuesync_v2.server.auth.time") as mock_time:
         mock_time.monotonic.return_value = base_time + 960
         assert is_login_locked_out(ip) is False
 
@@ -230,7 +230,7 @@ def test_login_required_redirects_when_no_session(client: FlaskClient) -> None:
 def test_login_required_passes_when_session_set(app: Flask) -> None:
     """verifies a logged-in session accesses protected routes."""
     # set a password first
-    from blackvuesync.server.auth import hash_password as hp
+    from blackvuesync_v2.server.auth import hash_password as hp
 
     pw_hash = hp("test-password-1234")
     app.settings_store.update(  # type: ignore[attr-defined]

@@ -73,7 +73,7 @@ Code formatting is handled automatically by pre-commit hooks (Black for Python, 
 
 ### Package Design
 
-The application is a Python package under `blackvuesync/`. Core modules:
+The application is a Python package under `blackvuesync_v2/`. Core modules:
 
 - `sync.py` -- filename regex, dashcam HTTP client, download/resume, retention,
   locking. The primary sync logic; kept self-contained for portability.
@@ -184,7 +184,7 @@ Grouping speeds up loading in BlackVue Viewer and keeps directories manageable.
 
 ### Server Package
 
-The web server lives under `blackvuesync/server/`. It is a standard Flask
+The web server lives under `blackvuesync_v2/server/`. It is a standard Flask
 application, structured as follows:
 
 - `__init__.py` -- `create_app(settings_store, ...)` factory. Configures
@@ -448,7 +448,7 @@ Requires Python 3.9+ for modern type hints (`str | None`, walrus operator `:=`).
 constraint must be maintained for portability (the cron-based sync path must
 work without pip-installed packages).
 
-The web server (`blackvuesync/server/`) depends on Flask, Flask-WTF, waitress,
+The web server (`blackvuesync_v2/server/`) depends on Flask, Flask-WTF, waitress,
 argon2-cffi, and APScheduler. These are listed as runtime dependencies in `pyproject.toml`
 and installed via `pip install -e ".[dev]"` in the development setup.
 
@@ -469,7 +469,7 @@ The Docker image (`Dockerfile`):
 - Sync is scheduler-driven from inside the long-running web service; cadence
   comes from `settings.schedule.cron_expression` (default `*/15 * * * *`)
 - `entrypoint.sh` remaps the dashcam user via `setuid.sh`, then execs
-  `python -m blackvuesync` with the CMD passed by Docker; defaults to `serve`
+  `python -m blackvuesync_v2` with the CMD passed by Docker; defaults to `serve`
 - Multi-stage build: runtime pip deps (Flask, Flask-WTF, waitress,
   argon2-cffi, APScheduler) are installed into `/opt/venv` in a builder stage via
   `uv`; the final stage copies only the venv, so `uv` is not in the image

@@ -16,8 +16,8 @@ FROM alpine:3.23.4
 
 LABEL org.opencontainers.image.title="BlackVue Sync"
 LABEL org.opencontainers.image.description="Hands-off synchronization of recordings from a BlackVue dashcam with a local directory over a LAN"
-LABEL org.opencontainers.image.url="https://github.com/tekgnosis-net/blackvuesync"
-LABEL org.opencontainers.image.source="https://github.com/tekgnosis-net/blackvuesync"
+LABEL org.opencontainers.image.url="https://github.com/tekgnosis-net/blackvuesync-v2"
+LABEL org.opencontainers.image.source="https://github.com/tekgnosis-net/blackvuesync-v2"
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.authors="Alessandro Colomba"
 
@@ -61,7 +61,7 @@ ENV ADDRESS="" \
     DRY_RUN="" \
     AFFINITY_KEY=""
 
-COPY --chown=dashcam blackvuesync /app/blackvuesync
+COPY --chown=dashcam blackvuesync_v2 /app/blackvuesync_v2
 ENV PYTHONPATH=/app
 
 EXPOSE 8080

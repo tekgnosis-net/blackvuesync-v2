@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from blackvuesync.server.gps import GpsPoint, parse_gps
+from blackvuesync_v2.server.gps import GpsPoint, parse_gps
 
 # synthetic, anonymized -- matches the real $GN framing (NOT $GP) and the
 # [epoch-ms] line prefix, with made-up coordinates.

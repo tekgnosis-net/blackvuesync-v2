@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from blackvuesync.server.viewer_index import (
+from blackvuesync_v2.server.viewer_index import (
     RecordingEntry,
     RecordingIndex,
     journey_chain,

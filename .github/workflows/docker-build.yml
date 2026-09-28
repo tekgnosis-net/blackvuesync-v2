@@ -130,4 +130,4 @@ jobs:
     #   with:
     #     username: ${{ vars.DOCKERHUB_USERNAME }}
     #     password: ${{ secrets.DOCKERHUB_TOKEN }}
-    #     repository: tekgnosis-net/blackvuesync
+    #     repository: tekgnosis-net/blackvuesync-v2

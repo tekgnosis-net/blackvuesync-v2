@@ -217,7 +217,7 @@ page asks for a new password.
 
 Open an issue at <https://github.com/tekgnosis-net/blackvuesync/issues> with:
 
-* the version (`docker exec blackvuesync python -m blackvuesync --version`),
+* the version (`docker exec blackvuesync python -m blackvuesync_v2 --version`),
 * the dashcam model and firmware (shown on the dashboard's dashcam card),
 * the relevant log lines, captured with verbosity set to **Debug** on the
   Logs page.

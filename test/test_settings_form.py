@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from blackvuesync.server.settings_form import (
+from blackvuesync_v2.server.settings_form import (
     SECTION_FIELD_SPECS,
     build_sections,
 )
-from blackvuesync.settings import _REDACTED_FIELDS, _SECTION_FIELDS
+from blackvuesync_v2.settings import _REDACTED_FIELDS, _SECTION_FIELDS
 
 
 def test_every_section_has_specs() -> None:
@@ -113,7 +113,7 @@ def test_lines_widget_value_is_joined() -> None:
 
 
 def test_stats_section_has_retention_field() -> None:
-    from blackvuesync.server.settings_form import SECTION_FIELD_SPECS, SECTION_LABELS
+    from blackvuesync_v2.server.settings_form import SECTION_FIELD_SPECS, SECTION_LABELS
 
     assert SECTION_LABELS["stats"] == "Statistics"
     names = [f.name for f in SECTION_FIELD_SPECS["stats"]]
@@ -123,7 +123,7 @@ def test_stats_section_has_retention_field() -> None:
 
 
 def test_viewer_section_has_two_select_fields() -> None:
-    from blackvuesync.server.settings_form import SECTION_FIELD_SPECS, SECTION_LABELS
+    from blackvuesync_v2.server.settings_form import SECTION_FIELD_SPECS, SECTION_LABELS
 
     assert SECTION_LABELS["viewer"] == "Viewer"
     specs = {f.name: f for f in SECTION_FIELD_SPECS["viewer"]}

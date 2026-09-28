@@ -12,7 +12,7 @@ from testcontainers.core.image import DockerImage
 logger = logging.getLogger("features.docker")
 
 # default docker image tag for tests
-DEFAULT_IMAGE_TAG = "ghcr.io/tekgnosis-net/blackvuesync:test"
+DEFAULT_IMAGE_TAG = "ghcr.io/tekgnosis-net/blackvuesync-v2:test"
 
 
 @dataclass

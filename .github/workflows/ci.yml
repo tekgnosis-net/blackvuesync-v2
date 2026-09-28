@@ -115,8 +115,11 @@ jobs:
           retention-days: 1
 
   publish:
-    # only publish on version tags after tests and build pass
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # publishes to pypi on version tags once the repository variable
+    # PYPI_PUBLISH is "true" and a pypi trusted publisher exists for
+    # blackvuesync-v2; off by default so a release never fails on pypi setup.
+    if: >-
+      github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && vars.PYPI_PUBLISH == 'true'
     needs: [build]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -125,7 +128,7 @@ jobs:
       id-token: write
     environment:
       name: pypi
-      url: https://pypi.org/project/blackvuesync/
+      url: https://pypi.org/project/blackvuesync-v2/
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@v8

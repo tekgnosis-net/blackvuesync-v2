@@ -11,9 +11,9 @@ from unittest.mock import patch
 
 import pytest
 
-from blackvuesync.__main__ import _apply_logging_settings, _register_logging_reload
-from blackvuesync.settings import LoggingSettings, SettingsStore
-from blackvuesync.sync import TEXT_LOG_FORMAT, StructuredLogFormatter
+from blackvuesync_v2.__main__ import _apply_logging_settings, _register_logging_reload
+from blackvuesync_v2.settings import LoggingSettings, SettingsStore
+from blackvuesync_v2.sync import TEXT_LOG_FORMAT, StructuredLogFormatter
 
 # ---------------------------------------------------------------------------
 # helpers

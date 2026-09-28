@@ -2,7 +2,6 @@
 
 # files for docker image
 *.sh text eol=lf
-blackvuesync.py text eol=lf
 crontab text eol=lf
 
 # binary recording files

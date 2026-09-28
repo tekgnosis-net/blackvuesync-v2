@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from blackvuesync.server.forecast import Forecast, compute_forecast
+from blackvuesync_v2.server.forecast import Forecast, compute_forecast
 
 
 def _rising() -> list[tuple[float, float]]:

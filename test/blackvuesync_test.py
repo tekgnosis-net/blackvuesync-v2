@@ -14,9 +14,9 @@ import urllib.request
 
 import pytest
 
-import blackvuesync.__main__ as _main
-import blackvuesync.metrics as _metrics
-import blackvuesync.sync as _sync
+import blackvuesync_v2.__main__ as _main
+import blackvuesync_v2.metrics as _metrics
+import blackvuesync_v2.sync as _sync
 
 
 @pytest.mark.parametrize(

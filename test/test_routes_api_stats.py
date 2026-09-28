@@ -12,11 +12,15 @@ from unittest.mock import patch
 
 import pytest
 
-from blackvuesync.metrics import SyncMetrics
-from blackvuesync.server import create_app
-from blackvuesync.server.auth import SESSION_VERSION_KEY, hash_password, session_version
-from blackvuesync.server.stats_store import StatsStore
-from blackvuesync.settings import SettingsStore
+from blackvuesync_v2.metrics import SyncMetrics
+from blackvuesync_v2.server import create_app
+from blackvuesync_v2.server.auth import (
+    SESSION_VERSION_KEY,
+    hash_password,
+    session_version,
+)
+from blackvuesync_v2.server.stats_store import StatsStore
+from blackvuesync_v2.settings import SettingsStore
 
 
 @pytest.fixture()

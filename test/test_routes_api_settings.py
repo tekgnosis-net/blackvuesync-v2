@@ -11,9 +11,13 @@ from unittest.mock import patch
 
 import pytest
 
-from blackvuesync.server import create_app
-from blackvuesync.server.auth import SESSION_VERSION_KEY, hash_password, session_version
-from blackvuesync.settings import AuthSettings, SettingsStore
+from blackvuesync_v2.server import create_app
+from blackvuesync_v2.server.auth import (
+    SESSION_VERSION_KEY,
+    hash_password,
+    session_version,
+)
+from blackvuesync_v2.settings import AuthSettings, SettingsStore
 
 
 @pytest.fixture()
@@ -67,7 +71,7 @@ class TestGetSettings:
         state (password_hash='') does not leak through the api."""
         # the store refuses an empty session_secret, so the redaction helper
         # is exercised directly with both secrets empty.
-        from blackvuesync.server.routes.api_settings import _section_to_dict
+        from blackvuesync_v2.server.routes.api_settings import _section_to_dict
 
         body = _section_to_dict("auth", AuthSettings())
         assert body["password_hash"] == "***"
@@ -305,7 +309,7 @@ class TestPatchTypeChecks:
 
     def test_store_validation_error_returns_422(self, logged_in_client: Any) -> None:
         """a ValidationError raised by store.update maps to 422, not 500."""
-        from blackvuesync.settings import ValidationError
+        from blackvuesync_v2.settings import ValidationError
 
         client, store = logged_in_client
         with patch.object(

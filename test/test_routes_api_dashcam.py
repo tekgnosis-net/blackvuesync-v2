@@ -14,9 +14,9 @@ from unittest.mock import patch
 
 import pytest
 
-from blackvuesync.server import create_app
-from blackvuesync.server.auth import hash_password
-from blackvuesync.settings import SettingsStore
+from blackvuesync_v2.server import create_app
+from blackvuesync_v2.server.auth import hash_password
+from blackvuesync_v2.settings import SettingsStore
 
 
 @pytest.fixture()
@@ -66,12 +66,12 @@ class TestParseHelpers:
     """unit tests for the version.bin and config.ini parsers."""
 
     def test_parse_version_bin_strips_control_chars(self) -> None:
-        from blackvuesync.server.routes.api_dashcam import _parse_version_bin
+        from blackvuesync_v2.server.routes.api_dashcam import _parse_version_bin
 
         assert _parse_version_bin("DR900X-2.013\x00\x01") == "DR900X-2.013"
 
     def test_parse_config_ini_returns_nested_dict(self) -> None:
-        from blackvuesync.server.routes.api_dashcam import _parse_config_ini
+        from blackvuesync_v2.server.routes.api_dashcam import _parse_config_ini
 
         text = "[Tab1]\nResolution=4K\n[Tab3]\nVoice=ON\n"
         parsed = _parse_config_ini(text)
@@ -80,14 +80,14 @@ class TestParseHelpers:
 
     def test_parse_config_ini_handles_missing_section_header(self) -> None:
         """legacy firmware may omit a leading section header; parser recovers."""
-        from blackvuesync.server.routes.api_dashcam import _parse_config_ini
+        from blackvuesync_v2.server.routes.api_dashcam import _parse_config_ini
 
         parsed = _parse_config_ini("Resolution=4K\nVoice=ON\n")
         # the synthetic default section captures the header-less keys
         assert any("Resolution" in keys for keys in parsed.values())
 
     def test_config_preview_flattens_and_limits(self) -> None:
-        from blackvuesync.server.routes.api_dashcam import _config_preview
+        from blackvuesync_v2.server.routes.api_dashcam import _config_preview
 
         config = {"Tab1": {"A": "1", "B": "2"}, "Tab2": {"C": "3"}}
         preview = _config_preview(config, limit=2)
@@ -127,7 +127,7 @@ class TestDashcamInfo:
     def test_returns_no_address_when_unconfigured(self) -> None:
         """unit-test the helper directly: ConnectionSettings rejects empty
         address so the route path cannot be exercised with one."""
-        from blackvuesync.server.routes.api_dashcam import _compute_dashcam_info
+        from blackvuesync_v2.server.routes.api_dashcam import _compute_dashcam_info
 
         result = _compute_dashcam_info("")
         assert result["available"] is False

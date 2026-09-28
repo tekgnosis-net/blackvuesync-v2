@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from blackvuesync.server.progress import (
+from blackvuesync_v2.server.progress import (
     FileProgress,
     ProgressPublisher,
     SyncProgress,

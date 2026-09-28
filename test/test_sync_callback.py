@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from blackvuesync.sync import download_file
+from blackvuesync_v2.sync import download_file
 
 # ---------------------------------------------------------------------------
 # mini in-process HTTP server for download_file tests
@@ -183,7 +183,7 @@ class TestDownloadRecordingPublisher:
         http_server: tuple[str, int],
         tmp_path: Path,
     ) -> None:
-        from blackvuesync.sync import download_recording, to_recording
+        from blackvuesync_v2.sync import download_recording, to_recording
 
         host, port = http_server
         base_url = f"http://{host}:{port}/"
@@ -192,7 +192,7 @@ class TestDownloadRecordingPublisher:
         recording = to_recording("20230101_120000_NF.mp4", "none")
         assert recording is not None
 
-        with patch("blackvuesync.sync.skip_metadata", set()):
+        with patch("blackvuesync_v2.sync.skip_metadata", set()):
             download_recording(base_url, recording, str(tmp_path), publisher=pub)
 
         # start_file should be called for at least the mp4
@@ -204,7 +204,7 @@ class TestDownloadRecordingPublisher:
         http_server: tuple[str, int],
         tmp_path: Path,
     ) -> None:
-        from blackvuesync.sync import download_recording, to_recording
+        from blackvuesync_v2.sync import download_recording, to_recording
 
         host, port = http_server
         base_url = f"http://{host}:{port}/"
@@ -213,7 +213,7 @@ class TestDownloadRecordingPublisher:
         recording = to_recording("20230101_120000_NF.mp4", "none")
         assert recording is not None
 
-        with patch("blackvuesync.sync.skip_metadata", set()):
+        with patch("blackvuesync_v2.sync.skip_metadata", set()):
             download_recording(base_url, recording, str(tmp_path), publisher=pub)
 
         assert pub.finish_file.called
@@ -228,7 +228,7 @@ class TestDownloadRecordingPublisher:
         http_server: tuple[str, int],
         tmp_path: Path,
     ) -> None:
-        from blackvuesync.sync import download_recording, to_recording
+        from blackvuesync_v2.sync import download_recording, to_recording
 
         host, port = http_server
         base_url = f"http://{host}:{port}/"
@@ -236,7 +236,7 @@ class TestDownloadRecordingPublisher:
         recording = to_recording("20230101_120000_NF.mp4", "none")
         assert recording is not None
 
-        with patch("blackvuesync.sync.skip_metadata", set()):
+        with patch("blackvuesync_v2.sync.skip_metadata", set()):
             # should not raise
             download_recording(base_url, recording, str(tmp_path))
 

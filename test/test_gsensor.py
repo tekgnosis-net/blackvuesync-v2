@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import struct
 
-from blackvuesync.server.gsensor import SCALE_G, GForce, parse_gsensor
+from blackvuesync_v2.server.gsensor import SCALE_G, GForce, parse_gsensor
 
 
 def _record(ms: int, x: int, y: int, z: int) -> bytes:

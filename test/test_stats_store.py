@@ -5,8 +5,8 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from blackvuesync.metrics import SyncMetrics
-from blackvuesync.server.stats_store import RunRow, StatsStore
+from blackvuesync_v2.metrics import SyncMetrics
+from blackvuesync_v2.server.stats_store import RunRow, StatsStore
 
 
 def _metrics(

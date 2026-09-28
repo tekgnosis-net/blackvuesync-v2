@@ -11,9 +11,13 @@ import pytest
 from flask import Flask
 from flask.testing import FlaskClient
 
-from blackvuesync.server import create_app
-from blackvuesync.server.auth import SESSION_VERSION_KEY, hash_password, session_version
-from blackvuesync.settings import SettingsStore
+from blackvuesync_v2.server import create_app
+from blackvuesync_v2.server.auth import (
+    SESSION_VERSION_KEY,
+    hash_password,
+    session_version,
+)
+from blackvuesync_v2.settings import SettingsStore
 
 # ---------------------------------------------------------------------------
 # fixtures

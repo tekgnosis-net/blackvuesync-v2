@@ -1,4 +1,4 @@
-"""tests for blackvuesync.settings module."""
+"""tests for blackvuesync_v2.settings module."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
-from blackvuesync.settings import (
+from blackvuesync_v2.settings import (
     SCHEMA_VERSION,
     AuthSettings,
     ConnectionSettings,
@@ -707,7 +707,7 @@ def test_bootstrap_warns_retired_env_vars(
     """verifies CRON and RUN_ONCE env vars produce warning log entries."""
     import logging
 
-    with caplog.at_level(logging.WARNING, logger="blackvuesync.settings"):
+    with caplog.at_level(logging.WARNING, logger="blackvuesync_v2.settings"):
         _make_store(settings_path, env={"CRON": "true", "RUN_ONCE": "1"})
 
     messages = [r.message for r in caplog.records]
@@ -865,7 +865,7 @@ def test_bootstrap_admin_password_env_var_sets_hash(
     """verifies BLACKVUESYNC_ADMIN_PASSWORD is hashed and never logged."""
     import logging
 
-    from blackvuesync.server.auth import verify_password
+    from blackvuesync_v2.server.auth import verify_password
 
     password = "a-long-enough-password"
     with caplog.at_level(logging.DEBUG):
@@ -897,7 +897,7 @@ def test_bootstrap_admin_password_without_argon2_is_ignored(
     settings_path: Path,
 ) -> None:
     """verifies the cli path copes with the server extras being unavailable."""
-    with patch.dict("sys.modules", {"blackvuesync.server.auth": None}):
+    with patch.dict("sys.modules", {"blackvuesync_v2.server.auth": None}):
         store = _make_store(
             settings_path,
             env={"BLACKVUESYNC_ADMIN_PASSWORD": "a-long-enough-password"},
@@ -907,7 +907,7 @@ def test_bootstrap_admin_password_without_argon2_is_ignored(
 
 def test_section_from_dict_ignores_unknown_keys() -> None:
     """verifies _section_from_dict skips keys not in the dataclass."""
-    from blackvuesync.settings import _section_from_dict
+    from blackvuesync_v2.settings import _section_from_dict
 
     raw = {"port": 9090, "unknown_field": "ignored"}
     s = _section_from_dict(WebSettings, raw, set())
@@ -1002,7 +1002,7 @@ def test_load_logs_validation_errors(
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(raw, f)
 
-    with caplog.at_level(logging.WARNING, logger="blackvuesync.settings"):
+    with caplog.at_level(logging.WARNING, logger="blackvuesync_v2.settings"):
         SettingsStore(settings_path)
 
     messages = [r.message for r in caplog.records]
@@ -1035,7 +1035,7 @@ class TestSchedulePaused:
 
     def test_paused_validate_accepts_any_bool(self) -> None:
         """validate() returns no errors for either paused value."""
-        from blackvuesync.settings import ScheduleSettings
+        from blackvuesync_v2.settings import ScheduleSettings
 
         assert ScheduleSettings(paused=False).validate() == []
         assert ScheduleSettings(paused=True).validate() == []
@@ -1047,7 +1047,7 @@ class TestSchedulePaused:
 
 
 def test_stats_section_defaults_and_validate() -> None:
-    from blackvuesync.settings import Settings, StatsSettings
+    from blackvuesync_v2.settings import Settings, StatsSettings
 
     s = Settings()
     assert isinstance(s.stats, StatsSettings)
@@ -1061,7 +1061,11 @@ def test_stats_section_defaults_and_validate() -> None:
 def test_stats_section_roundtrips_through_dict() -> None:
     import dataclasses
 
-    from blackvuesync.settings import Settings, _settings_from_dict, _settings_to_dict
+    from blackvuesync_v2.settings import (
+        Settings,
+        _settings_from_dict,
+        _settings_to_dict,
+    )
 
     s = Settings(stats=dataclasses.replace(Settings().stats, retention_days=30))
     raw = _settings_to_dict(s)
@@ -1070,7 +1074,7 @@ def test_stats_section_roundtrips_through_dict() -> None:
 
 
 def test_stats_section_defaults_when_absent_from_file() -> None:
-    from blackvuesync.settings import _settings_from_dict
+    from blackvuesync_v2.settings import _settings_from_dict
 
     settings = _settings_from_dict({"version": 1, "connection": {"address": "1.2.3.4"}})
     assert settings.stats.retention_days == 365
@@ -1082,7 +1086,7 @@ def test_stats_section_defaults_when_absent_from_file() -> None:
 
 
 def test_viewer_section_defaults_and_validate() -> None:
-    from blackvuesync.settings import Settings, ViewerSettings
+    from blackvuesync_v2.settings import Settings, ViewerSettings
 
     s = Settings()
     assert isinstance(s.viewer, ViewerSettings)
@@ -1100,7 +1104,11 @@ def test_viewer_section_defaults_and_validate() -> None:
 def test_viewer_section_roundtrips_and_defaults_when_absent() -> None:
     import dataclasses
 
-    from blackvuesync.settings import Settings, _settings_from_dict, _settings_to_dict
+    from blackvuesync_v2.settings import (
+        Settings,
+        _settings_from_dict,
+        _settings_to_dict,
+    )
 
     s = Settings(viewer=dataclasses.replace(Settings().viewer, journey_mode="full"))
     raw = _settings_to_dict(s)
@@ -1169,7 +1177,7 @@ def test_schedule_validate_accepts_iana_timezone() -> None:
 
 def test_cron_trigger_fields_translates_day_of_week_to_names() -> None:
     """verifies numeric days of week follow cron numbering (0 and 7 = sunday)."""
-    from blackvuesync.settings import cron_trigger_fields
+    from blackvuesync_v2.settings import cron_trigger_fields
 
     assert cron_trigger_fields("0 3 * * 0")[0]["day_of_week"] == "sun"
     assert cron_trigger_fields("0 3 * * 7")[0]["day_of_week"] == "sun"
@@ -1184,7 +1192,7 @@ def test_cron_trigger_fields_translates_day_of_week_to_names() -> None:
 
 def test_cron_trigger_fields_ors_restricted_day_fields() -> None:
     """verifies restricted day of month and day of week yield two field sets."""
-    from blackvuesync.settings import cron_trigger_fields
+    from blackvuesync_v2.settings import cron_trigger_fields
 
     fields_list = cron_trigger_fields("0 3 1 * mon")
     assert [(f["day"], f["day_of_week"]) for f in fields_list] == [

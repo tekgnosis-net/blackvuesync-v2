@@ -7,7 +7,7 @@ set -eu
 /setuid.sh
 
 if [ $# -eq 0 ]; then
-    exec su-exec dashcam python -m blackvuesync serve
+    exec su-exec dashcam python -m blackvuesync_v2 serve
 else
-    exec su-exec dashcam python -m blackvuesync "$@"
+    exec su-exec dashcam python -m blackvuesync_v2 "$@"
 fi

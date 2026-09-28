@@ -15,7 +15,7 @@ Read the [CHANGELOG](../../CHANGELOG.md) for the versions between yours and
 the new one. Your running version is shown by:
 
 ```sh
-docker exec blackvuesync python -m blackvuesync --version
+docker exec blackvuesync python -m blackvuesync_v2 --version
 ```
 
 ## Docker Compose

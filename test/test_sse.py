@@ -15,10 +15,10 @@ from unittest.mock import patch
 from flask import Flask, Response
 from waitress.server import create_server  # type: ignore[import-untyped]
 
-from blackvuesync.server import create_app, sse
-from blackvuesync.server.auth import hash_password
-from blackvuesync.server.sse import MAX_STREAMS, active_streams, sse_response
-from blackvuesync.settings import SettingsStore
+from blackvuesync_v2.server import create_app, sse
+from blackvuesync_v2.server.auth import hash_password
+from blackvuesync_v2.server.sse import MAX_STREAMS, active_streams, sse_response
+from blackvuesync_v2.settings import SettingsStore
 
 
 def _events() -> Iterator[bytes]:

@@ -10,10 +10,10 @@ from unittest.mock import patch
 
 import pytest
 
-from blackvuesync.server import create_app
-from blackvuesync.server.auth import hash_password
-from blackvuesync.server.progress import ProgressPublisher
-from blackvuesync.settings import SettingsStore
+from blackvuesync_v2.server import create_app
+from blackvuesync_v2.server.auth import hash_password
+from blackvuesync_v2.server.progress import ProgressPublisher
+from blackvuesync_v2.settings import SettingsStore
 
 # ---------------------------------------------------------------------------
 # fixtures

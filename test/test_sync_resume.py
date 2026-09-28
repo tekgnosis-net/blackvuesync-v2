@@ -10,8 +10,8 @@ from threading import Thread
 
 import pytest
 
-import blackvuesync.sync as _sync
-from blackvuesync.sync import download_file
+import blackvuesync_v2.sync as _sync
+from blackvuesync_v2.sync import download_file
 
 _PAYLOAD = b"".join(bytes([i % 256]) for i in range(1024 * 7))  # 7 KiB
 _FILENAME = "20230101_120000_NF.mp4"

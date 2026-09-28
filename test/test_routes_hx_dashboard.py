@@ -11,9 +11,9 @@ from unittest.mock import patch
 
 import pytest
 
-from blackvuesync.server import create_app
-from blackvuesync.server.auth import hash_password
-from blackvuesync.settings import SettingsStore
+from blackvuesync_v2.server import create_app
+from blackvuesync_v2.server.auth import hash_password
+from blackvuesync_v2.settings import SettingsStore
 
 
 @pytest.fixture()
@@ -95,8 +95,8 @@ class TestDashcamCard:
 
         from flask import render_template
 
-        from blackvuesync.server import create_app
-        from blackvuesync.settings import SettingsStore
+        from blackvuesync_v2.server import create_app
+        from blackvuesync_v2.settings import SettingsStore
 
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "settings.json"

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import blackvuesync.sync as _sync
-from blackvuesync.sync import clean_destination, prune_orphan_partials
+import blackvuesync_v2.sync as _sync
+from blackvuesync_v2.sync import clean_destination, prune_orphan_partials
 
 
 def _touch(p: Path) -> None:

@@ -108,7 +108,7 @@ def _execute_direct(
             "--parallel-mode",
             "--source=.",
             "-m",
-            "blackvuesync",
+            "blackvuesync_v2",
             address,
             "-d",
             destination,
@@ -119,7 +119,7 @@ def _execute_direct(
         cmd = [
             "python3",
             "-m",
-            "blackvuesync",
+            "blackvuesync_v2",
             address,
             "-d",
             destination,
@@ -264,7 +264,7 @@ def _execute_docker(
 
     # builds the equivalent of the retired blackvuesync.sh wrapper directly
     # in Python: the entrypoint now passes the CMD argv through to
-    # `python -m blackvuesync`, so each former env var becomes a CLI flag.
+    # `python -m blackvuesync_v2`, so each former env var becomes a CLI flag.
     args: list[str] = [
         "sync",
         docker_address,

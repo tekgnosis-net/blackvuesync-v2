@@ -1,5 +1,5 @@
 [project]
-name = "blackvuesync"
+name = "blackvuesync-v2"
 version = "2.8.0a0"
 description = "Synchronize recordings from BlackVue dashcams to a local directory"
 readme = "README.md"
@@ -31,7 +31,7 @@ dependencies = [
 ]
 
 [project.scripts]
-blackvuesync = "blackvuesync.__main__:main"
+blackvuesync-v2 = "blackvuesync_v2.__main__:main"
 
 [project.optional-dependencies]
 # development dependencies
@@ -55,19 +55,21 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/tekgnosis-net/blackvuesync"
-Repository = "https://github.com/tekgnosis-net/blackvuesync"
-Issues = "https://github.com/tekgnosis-net/blackvuesync/issues"
+Homepage = "https://tekgnosis-net.github.io/blackvuesync-v2/"
+Documentation = "https://tekgnosis-net.github.io/blackvuesync-v2/"
+Repository = "https://github.com/tekgnosis-net/blackvuesync-v2"
+Issues = "https://github.com/tekgnosis-net/blackvuesync-v2/issues"
+Changelog = "https://tekgnosis-net.github.io/blackvuesync-v2/release-notes/"
 
 [build-system]
 requires = ["setuptools>=58.0.4"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["blackvuesync", "blackvuesync.server", "blackvuesync.server.routes"]
+packages = ["blackvuesync_v2", "blackvuesync_v2.server", "blackvuesync_v2.server.routes"]
 
 [tool.setuptools.package-data]
-"blackvuesync.server" = [
+"blackvuesync_v2.server" = [
     "templates/**/*.html",
     "static/**/*",
 ]
@@ -159,7 +161,7 @@ disallow_untyped_decorators = false
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["blackvuesync.server.routes.*", "blackvuesync.server.routes.auth", "blackvuesync.server.routes.health", "blackvuesync.server.routes.ui"]
+module = ["blackvuesync_v2.server.routes.*", "blackvuesync_v2.server.routes.auth", "blackvuesync_v2.server.routes.health", "blackvuesync_v2.server.routes.ui"]
 disallow_untyped_decorators = false
 
 [tool.coverage.run]

@@ -12,8 +12,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from blackvuesync.server.progress import ProgressPublisher
-from blackvuesync.server.sync_runner import _sync_lock, trigger_sync
+from blackvuesync_v2.server.progress import ProgressPublisher
+from blackvuesync_v2.server.sync_runner import _sync_lock, trigger_sync
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -86,7 +86,7 @@ class TestTriggerSync:
         pub = ProgressPublisher()
         settings = _make_settings()
 
-        with patch("blackvuesync.server.sync_runner._do_sync", side_effect=_noop):
+        with patch("blackvuesync_v2.server.sync_runner._do_sync", side_effect=_noop):
             result = trigger_sync(settings, pub)
 
         time.sleep(0.05)  # let the thread finish
@@ -108,7 +108,7 @@ class TestTriggerSync:
         ) -> None:
             _slow_noop(s, p, job_id=job_id, started=started, proceed=proceed)
 
-        with patch("blackvuesync.server.sync_runner._do_sync", side_effect=_slow):
+        with patch("blackvuesync_v2.server.sync_runner._do_sync", side_effect=_slow):
             result1 = trigger_sync(settings, pub)
             started.wait(timeout=2.0)  # wait until the thread is running
             result2 = trigger_sync(settings, pub)
@@ -134,7 +134,7 @@ class TestTriggerSync:
         ) -> None:
             _slow_noop(s, p, job_id=job_id, started=started, proceed=proceed)
 
-        with patch("blackvuesync.server.sync_runner._do_sync", side_effect=_slow):
+        with patch("blackvuesync_v2.server.sync_runner._do_sync", side_effect=_slow):
             result1 = trigger_sync(settings, pub)
             started.wait(timeout=2.0)
             result2 = trigger_sync(settings, pub)
@@ -159,7 +159,7 @@ class TestTriggerSync:
             time.sleep(0.05)
             p.end_job(success=True)
 
-        with patch("blackvuesync.server.sync_runner._do_sync", side_effect=_fast):
+        with patch("blackvuesync_v2.server.sync_runner._do_sync", side_effect=_fast):
             result1 = trigger_sync(settings, pub)
             assert result1["status"] == "started"
 
@@ -190,7 +190,7 @@ class TestTriggerSync:
             proceed.wait(timeout=5.0)
             p.end_job(success=True)
 
-        with patch("blackvuesync.server.sync_runner._do_sync", side_effect=_record):
+        with patch("blackvuesync_v2.server.sync_runner._do_sync", side_effect=_record):
             trigger_sync(settings, pub)
             time.sleep(0.1)  # give the thread time to start
 
@@ -206,10 +206,10 @@ def test_do_sync_records_a_row_and_finalizes_metrics(
 ) -> None:
     import types
 
-    import blackvuesync.server.sync_runner as runner
-    import blackvuesync.sync as _sync
-    from blackvuesync.server.progress import ProgressPublisher
-    from blackvuesync.server.stats_store import StatsStore
+    import blackvuesync_v2.server.sync_runner as runner
+    import blackvuesync_v2.sync as _sync
+    from blackvuesync_v2.server.progress import ProgressPublisher
+    from blackvuesync_v2.server.stats_store import StatsStore
 
     destination = tmp_path / "rec"
     destination.mkdir()
@@ -276,10 +276,10 @@ def test_do_sync_records_failure_row_when_sync_raises(
 ) -> None:
     import types
 
-    import blackvuesync.server.sync_runner as runner
-    import blackvuesync.sync as _sync
-    from blackvuesync.server.progress import ProgressPublisher
-    from blackvuesync.server.stats_store import StatsStore
+    import blackvuesync_v2.server.sync_runner as runner
+    import blackvuesync_v2.sync as _sync
+    from blackvuesync_v2.server.progress import ProgressPublisher
+    from blackvuesync_v2.server.stats_store import StatsStore
 
     destination = tmp_path / "rec"
     destination.mkdir()
@@ -343,10 +343,10 @@ def test_do_sync_fails_without_calling_sync_when_address_is_empty(
 ) -> None:
     import types
 
-    import blackvuesync.server.sync_runner as runner
-    import blackvuesync.sync as _sync
-    from blackvuesync.server.progress import ProgressPublisher
-    from blackvuesync.server.stats_store import StatsStore
+    import blackvuesync_v2.server.sync_runner as runner
+    import blackvuesync_v2.sync as _sync
+    from blackvuesync_v2.server.progress import ProgressPublisher
+    from blackvuesync_v2.server.stats_store import StatsStore
 
     destination = tmp_path / "rec"
     destination.mkdir()

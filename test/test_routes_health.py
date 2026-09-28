@@ -10,8 +10,8 @@ import pytest
 from flask import Flask
 from flask.testing import FlaskClient
 
-from blackvuesync.server import create_app
-from blackvuesync.settings import SettingsStore
+from blackvuesync_v2.server import create_app
+from blackvuesync_v2.settings import SettingsStore
 
 # ---------------------------------------------------------------------------
 # fixtures

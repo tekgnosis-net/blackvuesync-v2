@@ -1,12 +1,12 @@
-"""tests for the cooperative stop flag in blackvuesync.sync."""
+"""tests for the cooperative stop flag in blackvuesync_v2.sync."""
 
 from __future__ import annotations
 
 import threading
 from unittest.mock import MagicMock, patch
 
-from blackvuesync.server.progress import ProgressPublisher
-from blackvuesync.server.sync_runner import trigger_sync
+from blackvuesync_v2.server.progress import ProgressPublisher
+from blackvuesync_v2.server.sync_runner import trigger_sync
 
 
 class TestStopFlag:
@@ -14,23 +14,23 @@ class TestStopFlag:
 
     def setup_method(self) -> None:
         """ensures each test starts with the flag cleared."""
-        from blackvuesync.sync import clear_stop
+        from blackvuesync_v2.sync import clear_stop
 
         clear_stop()
 
     def test_initial_state_is_not_requested(self) -> None:
-        from blackvuesync.sync import is_stop_requested
+        from blackvuesync_v2.sync import is_stop_requested
 
         assert is_stop_requested() is False
 
     def test_request_stop_sets_flag(self) -> None:
-        from blackvuesync.sync import is_stop_requested, request_stop
+        from blackvuesync_v2.sync import is_stop_requested, request_stop
 
         request_stop()
         assert is_stop_requested() is True
 
     def test_clear_stop_resets_flag(self) -> None:
-        from blackvuesync.sync import clear_stop, is_stop_requested, request_stop
+        from blackvuesync_v2.sync import clear_stop, is_stop_requested, request_stop
 
         request_stop()
         clear_stop()
@@ -38,7 +38,7 @@ class TestStopFlag:
 
     def test_request_stop_is_idempotent(self) -> None:
         """calling request_stop twice keeps the flag set."""
-        from blackvuesync.sync import is_stop_requested, request_stop
+        from blackvuesync_v2.sync import is_stop_requested, request_stop
 
         request_stop()
         request_stop()
@@ -56,7 +56,7 @@ class TestTriggerSyncClearsStopFlag:
         and asserts on it from the main thread. an in-thread assert would
         be swallowed by threading.excepthook and never fail the test.
         """
-        from blackvuesync.sync import is_stop_requested, request_stop
+        from blackvuesync_v2.sync import is_stop_requested, request_stop
 
         # simulate a stale stop flag from a previous run
         request_stop()
@@ -91,7 +91,7 @@ class TestTriggerSyncClearsStopFlag:
             p.end_job(success=True)
             thread_done.set()
 
-        with patch("blackvuesync.server.sync_runner._do_sync", side_effect=_capture):
+        with patch("blackvuesync_v2.server.sync_runner._do_sync", side_effect=_capture):
             result = trigger_sync(settings, publisher)
             # wait deterministically for the thread to finish; 2s ceiling
             assert thread_done.wait(timeout=2.0), "daemon thread did not finish"
