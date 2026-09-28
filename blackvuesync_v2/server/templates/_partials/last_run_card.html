@@ -19,13 +19,17 @@
   {% elif last %}
     <div class="card-value">{{ last.ago }}</div>
     <div class="card-sub">
-      <span class="badge badge-{{ 'complete' if last.success else 'failed' }}">{{ 'ok' if last.success else 'failed' }}</span>
+      {% if last.unreachable %}
+        <span class="badge badge-offline">dashcam not reachable</span>
+      {% else %}
+        <span class="badge badge-{{ 'complete' if last.success else 'failed' }}">{{ 'ok' if last.success else 'failed' }}</span>
+      {% endif %}
       {% if last.dry_run %}<span class="badge">dry run</span>{% endif %}
       {{ last.when }}
     </div>
     <div class="card-sub">
       {{ last.files }} files · {{ last.bytes | filesizeformat }}
-      {% if last.failures > 0 %} · {{ last.failures }} failed{% endif %}
+      {% if last.failures > 0 and not last.unreachable %} · {{ last.failures }} failed{% endif %}
     </div>
   {% else %}
     <div class="card-value">--</div>

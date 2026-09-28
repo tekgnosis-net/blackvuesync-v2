@@ -168,6 +168,12 @@
   color: var(--color-error);
 }
 
+/* expected state (car away), so neutral rather than an error colour */
+.badge-offline {
+  background-color: var(--color-fill);
+  color: var(--color-label-secondary);
+}
+
 .badge-running {
   background-color: color-mix(in srgb, var(--color-accent) 16%, transparent);
   color: var(--color-accent);

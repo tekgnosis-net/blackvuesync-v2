@@ -256,6 +256,12 @@ application, structured as follows:
   module-level `threading.Lock`; surfaces a 409 when a sync is already running.
   The cooperative stop flag behind `POST /api/sync/stop` lives in `sync.py`
   (checked between download chunks) and is cleared at the start of each run.
+  `sync.DashcamUnavailableError` (a `UserWarning` subclass, so the CLI is
+  unchanged) marks the car-away state (unreachable/down host, timeouts, a
+  dropped connection); `_do_sync` catches it specifically and logs one INFO
+  line with no traceback, still recording the run failure. The last-sync card
+  shows "dashcam not reachable" when a stored run's only non-zero failure
+  reasons are `network`/`timeout` (stored runs list every reason, mostly 0).
 - `scheduler.py` -- APScheduler `BackgroundScheduler` that fires the sync from
   `schedule.cron_expression` in `schedule.timezone`; honors `schedule.paused`.
 - `log_buffer.py` -- ring-buffer logging handler behind the `/logs` page; unlike
@@ -385,6 +391,7 @@ Two logger hierarchies:
   `ProgressPublisher` state machine, throttle, retention, concurrency
 - `test/test_sync_callback.py` -- tests for `download_file` `on_chunk` callback
 - `test/test_sync_runner.py` -- tests for `trigger_sync` locking and daemon thread
+- `test/test_dashcam_unreachable.py` -- car-away exception, one-line log, card label
 - `test/test_routes_api_sync.py` -- tests for `/api/sync/*` endpoints and SSE
 - `test/test_routes_hx_sync.py` -- tests for `/hx/sync/*` htmx fragment endpoints
 - `test/test_routes_*.py` -- one file per blueprint (`api_auth`, `api_dashcam`,

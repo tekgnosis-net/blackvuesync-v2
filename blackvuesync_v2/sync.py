@@ -149,6 +149,16 @@ dashcam_unavailable_errno_codes = (
     errno.ETIMEDOUT,  # connection timed out
 )
 
+
+class DashcamUnavailableError(UserWarning):
+    """the dashcam cannot be reached: off, out of wi-fi range, or dropped mid-transfer.
+
+    an expected state whenever the car is away. a UserWarning subclass, so the
+    cli handles it as before; the web service catches it specifically and logs
+    one line instead of a traceback.
+    """
+
+
 # for unit testing
 today: datetime.date = datetime.date.today()
 
@@ -403,17 +413,17 @@ def get_dashcam_filenames(base_url: str) -> list[str]:
             isinstance(e.reason, (TimeoutError, socket.timeout))
             or e.reason.errno in dashcam_unavailable_errno_codes
         ):
-            raise UserWarning(f"Dashcam unavailable : {e}") from e
+            raise DashcamUnavailableError(f"Dashcam unavailable : {e}") from e
 
         raise RuntimeError(
             f"Cannot obtain list of recordings from dashcam at address : {base_url}; error : {e}"
         ) from e
     except socket.timeout as e:
-        raise UserWarning(
+        raise DashcamUnavailableError(
             f"Timeout communicating with dashcam at address : {base_url}; error : {e}"
         ) from e
     except http.client.RemoteDisconnected as e:
-        raise UserWarning(
+        raise DashcamUnavailableError(
             f"Dashcam disconnected without a response; address : {base_url}; error : {e}"
         ) from e
 
@@ -838,7 +848,7 @@ def download_file(  # pylint: disable=too-many-arguments,too-many-positional-arg
     except socket.timeout as e:
         if metrics:
             metrics.record_file_download_failure("timeout")
-        raise UserWarning(
+        raise DashcamUnavailableError(
             f"Timeout communicating with dashcam at address : {base_url}; error : {e}"
         ) from e
 
