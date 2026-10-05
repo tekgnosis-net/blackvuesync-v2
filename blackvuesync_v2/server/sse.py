@@ -20,6 +20,8 @@ class _StreamLimiter:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self.active = 0
+        # bumped by reset(); a slot only counts back if taken in this generation
+        self._generation = 0
 
     def acquire(self) -> Optional[Callable[[], None]]:
         """reserves a slot; returns an idempotent release callable, or None
@@ -28,6 +30,7 @@ class _StreamLimiter:
             if self.active >= MAX_STREAMS:
                 return None
             self.active += 1
+            generation = self._generation
         released = threading.Event()
 
         def release() -> None:
@@ -35,7 +38,9 @@ class _StreamLimiter:
             with self._lock:
                 if not released.is_set():
                     released.set()
-                    self.active -= 1
+                    # a reset already forgot slots taken before it
+                    if generation == self._generation:
+                        self.active -= 1
 
         return release
 
@@ -43,6 +48,7 @@ class _StreamLimiter:
         """forgets all open streams (tests only)."""
         with self._lock:
             self.active = 0
+            self._generation += 1
 
 
 _LIMITER = _StreamLimiter()

@@ -12,6 +12,16 @@ repository. Versions 2.2.0 and earlier are the upstream
 [BlackVue Sync](https://github.com/acolomba/blackvuesync) by Alessandro
 Colomba; their numbers refer to upstream pull requests.
 
+## Unreleased
+
+### Fixed
+
+* The browser test suite could fail intermittently on fast CI runners: the
+  limit of 16 live streams is shared by the whole process, and streams left
+  open by earlier tests held their slots for up to 30 seconds. Each test now
+  starts with a fresh limit, and a stream opened before a reset can no longer
+  free the slot of a newer one. No change to how the app behaves for users.
+
 ## 3.2.0 - 2026-10-05
 
 ### Added

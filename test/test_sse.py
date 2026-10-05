@@ -50,6 +50,20 @@ def teardown_function() -> None:
     sse._LIMITER.reset()  # pylint: disable=protected-access
 
 
+def test_release_after_reset_does_not_free_a_newer_slot() -> None:
+    """a stream opened before a reset must not release a slot taken after it."""
+    stale = sse._LIMITER.acquire()  # pylint: disable=protected-access
+    assert stale is not None
+    sse._LIMITER.reset()  # pylint: disable=protected-access
+    fresh = sse._LIMITER.acquire()  # pylint: disable=protected-access
+    assert fresh is not None
+    assert active_streams() == 1
+    stale()
+    assert active_streams() == 1
+    fresh()
+    assert active_streams() == 0
+
+
 def test_sse_response_has_no_hop_by_hop_headers() -> None:
     """verifies Transfer-Encoding is left to the server (PEP 3333)."""
     app = Flask(__name__)
