@@ -80,22 +80,9 @@ ROUTE = [
     (-33.83279, 151.20755),
 ]
 
-CONFIG_INI = """[Tab1]
-ImageSetting=0
-VideoQuality=0
-NormalRecord=1
-TimeZone=10
-DateDisplay=1
-SpeedUnit=0
-[Tab2]
-NormalSensitivity=2
-EventSensitivity=3
-MotionSensitivity=3
-[Tab3]
-StartVoice=1
-EndVoice=1
-ParkingVoice=1
-"""
+CAMERA_FIXTURES = REPO / "test" / "fixtures" / "camera"
+CONFIG_INI = (CAMERA_FIXTURES / "dr900x-plus-config.ini").read_text(encoding="utf-8")
+VERSION_BIN = (CAMERA_FIXTURES / "dr900x-plus-version.bin").read_bytes()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -331,7 +318,7 @@ class _DashcamHandler(http.server.BaseHTTPRequestHandler):
             )
             self._send(listing.encode())
         elif path == "/Config/version.bin":
-            self._send(b"DR900X-2CH 1.012\x00")
+            self._send(VERSION_BIN)
         elif path == "/Config/config.ini":
             self._send(CONFIG_INI.encode())
         elif path.startswith("/Record/") and path[8:] in self.server.files:
@@ -529,6 +516,10 @@ def capture(base: str, out: Path) -> None:
         page.goto(f"{base}/settings")
         page.click("[data-section-nav='sync']")
         shot(page, "settings")
+
+        page.locator('[data-section-nav="camera-cloud"]').click()
+        page.locator("#camera-panes .camera-field").first.wait_for(state="attached")
+        shot(page, "camera-settings")
 
         viewer(page, "viewer")
 

@@ -9,7 +9,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.15 /uv /usr/local/bin/uv
 RUN uv venv /opt/venv \
     && VIRTUAL_ENV=/opt/venv uv pip install --no-cache \
         "Flask~=3.1" "Flask-WTF~=1.2" "waitress~=3.0" \
-        "argon2-cffi>=23.1,<26.0" "APScheduler~=3.10"
+        "argon2-cffi>=23.1,<26.0" "APScheduler~=3.10" "cryptography~=50.0"
 
 # final stage: starts clean and copies only the populated venv from the builder.
 FROM alpine:3.24.2

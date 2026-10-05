@@ -18,6 +18,8 @@ from blackvuesync_v2.server import create_app
 from blackvuesync_v2.server.auth import hash_password
 from blackvuesync_v2.settings import SettingsStore
 
+FIXTURES = Path(__file__).parent / "fixtures" / "camera"
+
 
 @pytest.fixture()
 def settings_path(tmp_path: Path) -> Path:
@@ -62,29 +64,58 @@ def _fake_response(body: bytes):  # type: ignore[no-untyped-def]
     return _Ctx()
 
 
+def _camera_urlopen(url: str, *_args: Any, **_kwargs: Any) -> Any:
+    name = (
+        "dr900x-plus-config.ini"
+        if url.endswith("config.ini")
+        else "dr900x-plus-version.bin"
+    )
+    return _fake_response((FIXTURES / name).read_bytes())
+
+
+def _fixture_ciphertexts() -> list[str]:
+    """extracts all password values from the fixture config file."""
+    ciphertexts: list[str] = []
+    for line in (FIXTURES / "dr900x-plus-config.ini").read_text().splitlines():
+        if "_pw=" in line:
+            ciphertexts.append(line.split("=", 1)[1])
+    return ciphertexts
+
+
 class TestParseHelpers:
     """unit tests for the version.bin and config.ini parsers."""
 
-    def test_parse_version_bin_strips_control_chars(self) -> None:
-        from blackvuesync_v2.server.routes.api_dashcam import _parse_version_bin
+    def test_firmware_string_strips_control_chars(self) -> None:
+        from blackvuesync_v2.server.camera_config import parse_version
 
-        assert _parse_version_bin("DR900X-2.013\x00\x01") == "DR900X-2.013"
+        assert parse_version(b"DR900X-2.013\x00\x01").description == "DR900X-2.013"
 
-    def test_parse_config_ini_returns_nested_dict(self) -> None:
-        from blackvuesync_v2.server.routes.api_dashcam import _parse_config_ini
+    def test_config_sections_returns_nested_dict(self) -> None:
+        from blackvuesync_v2.server.routes.api_dashcam import _config_sections
 
         text = "[Tab1]\nResolution=4K\n[Tab3]\nVoice=ON\n"
-        parsed = _parse_config_ini(text)
+        parsed = _config_sections(text)
         assert parsed["Tab1"]["Resolution"] == "4K"
         assert parsed["Tab3"]["Voice"] == "ON"
 
-    def test_parse_config_ini_handles_missing_section_header(self) -> None:
+    def test_config_sections_handles_missing_section_header(self) -> None:
         """legacy firmware may omit a leading section header; parser recovers."""
-        from blackvuesync_v2.server.routes.api_dashcam import _parse_config_ini
+        from blackvuesync_v2.server.routes.api_dashcam import _config_sections
 
-        parsed = _parse_config_ini("Resolution=4K\nVoice=ON\n")
+        parsed = _config_sections("Resolution=4K\nVoice=ON\n")
         # the synthetic default section captures the header-less keys
         assert any("Resolution" in keys for keys in parsed.values())
+
+    def test_indented_secret_line_is_still_masked(self) -> None:
+        from blackvuesync_v2.server.routes.api_dashcam import (
+            _config_sections,
+            _mask_secrets,
+        )
+
+        text = "[Wifi]\nap_ssid=Cam\n  ap_pw=0123456789ABCDEF\n"
+        masked = _mask_secrets(_config_sections(text))
+        assert masked["Wifi"]["ap_pw"] == "***"
+        assert "0123456789ABCDEF" not in str(masked)
 
     def test_config_preview_flattens_and_limits(self) -> None:
         from blackvuesync_v2.server.routes.api_dashcam import _config_preview
@@ -158,3 +189,29 @@ class TestDashcamInfo:
             resp = client.get("/api/dashcam/info")
         assert resp.status_code == 401
         assert resp.get_json()["code"] == "AUTH_REQUIRED"
+
+
+def test_info_masks_passwords_and_describes_the_model(
+    logged_in_client: Any,
+) -> None:
+    client, _store = logged_in_client
+    with patch("urllib.request.urlopen", _camera_urlopen):
+        body = client.get("/api/dashcam/info").get_data(as_text=True)
+    data = json.loads(body)
+    assert data["firmware"] == "DR900X Plus · fw 1.015"
+    assert data["config"]["Cloud"]["sta_pw"] == "***"
+    assert data["config"]["Cloud"]["sta2_pw"] == "***"
+    assert data["config"]["Cloud"]["sta3_pw"] == "***"
+    assert data["config"]["Wifi"]["ap_pw"] == "***"
+    assert data["config"]["Cloud"]["sta_ssid"] == "DemoHome"
+    for ciphertext in _fixture_ciphertexts():
+        assert ciphertext not in body
+
+
+def test_info_card_never_contains_a_password(logged_in_client: Any) -> None:
+    client, _store = logged_in_client
+    with patch("urllib.request.urlopen", _camera_urlopen):
+        html = client.get("/hx/dashcam-info-card").get_data(as_text=True)
+    assert "DR900X Plus · fw 1.015" in html
+    for ciphertext in _fixture_ciphertexts():
+        assert ciphertext not in html

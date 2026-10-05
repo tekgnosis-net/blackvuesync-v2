@@ -524,6 +524,24 @@ class ViewerSettings(_Section):
 
 
 @dataclass(frozen=True)
+class CameraSettings(_Section):
+    """access to the dashcam's own settings (config.ini)."""
+
+    TIER: ClassVar[PropagationTier] = "immediate"
+
+    # seconds each camera settings read waits; short, so an absent car does not
+    # stall the settings page
+    read_timeout_seconds: float = 3.0
+
+    def _validate_values(self) -> list[str]:
+        """validates camera settings; returns a list of error strings."""
+        errors: list[str] = []
+        if not 0.5 <= self.read_timeout_seconds <= 30:
+            errors.append("camera.read_timeout_seconds must be between 0.5 and 30")
+        return errors
+
+
+@dataclass(frozen=True)
 class WebSettings(_Section):
     """web server settings."""
 
@@ -618,6 +636,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     metrics: MetricsSettings = field(default_factory=MetricsSettings)
     stats: StatsSettings = field(default_factory=StatsSettings)
     viewer: ViewerSettings = field(default_factory=ViewerSettings)
+    camera: CameraSettings = field(default_factory=CameraSettings)
     web: WebSettings = field(default_factory=WebSettings)
     auth: AuthSettings = field(default_factory=AuthSettings)
     system: SystemSettings = field(default_factory=SystemSettings)
@@ -633,6 +652,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         errors.extend(self.metrics.validate())
         errors.extend(self.stats.validate())
         errors.extend(self.viewer.validate())
+        errors.extend(self.camera.validate())
         errors.extend(self.web.validate())
         errors.extend(self.auth.validate())
         errors.extend(self.system.validate())
@@ -653,6 +673,7 @@ _SECTION_FIELDS: dict[str, type] = {
     "metrics": MetricsSettings,
     "stats": StatsSettings,
     "viewer": ViewerSettings,
+    "camera": CameraSettings,
     "web": WebSettings,
     "auth": AuthSettings,
     "system": SystemSettings,

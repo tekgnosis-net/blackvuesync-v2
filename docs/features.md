@@ -60,6 +60,12 @@ Every setting is editable in the browser and validated before it is saved.
 Most changes apply immediately or at the next sync; the few that need a
 restart are marked. See [Configuration](guide/configuration.md).
 
+## Camera settings
+
+Every setting stored on the dashcam, shown under **Settings → Camera** in the
+same groups as the BlackVue app, with Wi-Fi passwords masked behind an eye icon.
+See [Camera settings](guide/camera-settings.md).
+
 ## Dark mode
 
 The interface follows the system's light or dark appearance, including

@@ -1386,3 +1386,16 @@ def test_load_falls_back_to_default_for_mistyped_field(settings_path: Path) -> N
     settings = SettingsStore(settings_path).get()
     assert settings.auth.trusted_proxies == ()
     assert settings.web.port == 8080
+
+
+def test_camera_section_defaults_and_bounds() -> None:
+    from blackvuesync_v2.settings import CameraSettings, Settings, _settings_from_dict
+
+    assert Settings().camera.read_timeout_seconds == 3.0
+    assert CameraSettings().validate() == []
+    for bad in (0.4, 30.5):
+        assert CameraSettings(read_timeout_seconds=bad).validate() == [
+            "camera.read_timeout_seconds must be between 0.5 and 30"
+        ]
+    # files written before the section existed load the default
+    assert _settings_from_dict({"version": 2}).camera.read_timeout_seconds == 3.0

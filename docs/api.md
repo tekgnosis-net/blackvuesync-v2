@@ -489,7 +489,9 @@ Read-only inspection of the dashcam's on-camera configuration. Fetches
 `http://<address>/Config/version.bin` and `http://<address>/Config/config.ini`
 (BlackVue firmware is HTTP-only), parses them defensively, and returns
 structured JSON. Changing settings is deliberately out of scope (a future
-sub-project); this endpoint never writes to the camera.
+sub-project); this endpoint never writes to the camera, and Wi-Fi passwords in
+`config` are always `"***"` (so are unknown keys named like passwords). `firmware`
+is `"<model> · fw <version>"`.
 
 Available (firmware may be null if version.bin was unreachable while
 config.ini succeeded -- partial availability still reports available: true):
@@ -498,9 +500,10 @@ config.ini succeeded -- partial availability still reports available: true):
 {
   "available": true,
   "address": "192.168.1.50",
-  "firmware": "DR900X-2.013",
-  "config": {"Tab1": {"Resolution": "4K"}, "Tab3": {"Voice": "ON"}},
-  "setting_count": 2
+  "firmware": "DR900X Plus · fw 1.015",
+  "config": {"Tab1": {"TimeZone": "1000", "VideoQuality": "0"},
+             "Wifi": {"ap_ssid": "Blackvue900XPlus-000000", "ap_pw": "***"}},
+  "setting_count": 4
 }
 ```
 
@@ -513,6 +516,42 @@ Unreachable or no address configured:
 ```json
 {"available": false, "reason": "no address configured"}
 ```
+
+---
+
+## Camera API Endpoints
+
+### `GET /api/camera/config`
+
+Reads the camera's `config.ini` live (timeout `camera.read_timeout_seconds`);
+when the camera is unreachable, serves the last snapshot with `online: false`.
+Passwords are masked (`value` is eight bullets, `raw` is `null`), including
+keys the schema does not know that are named like passwords (ending `_pw` or
+containing `password`, `passwd` or `pwd`).
+
+```json
+{"available": true, "online": true, "read_at": "2026-10-05T01:02:03+00:00",
+ "model": "DR900X Plus", "firmware": "1.015",
+ "tabs": [{"name": "basic", "label": "Basic", "section": "Tab1",
+           "fields": [{"key": "Tab1.TimeZone", "label": "Time zone", "value": "UTC+10:00",
+                       "raw": "1000", "secret": false, "has_value": true,
+                       "formats_card": true, "help": ""}],
+           "other": [], "not_fitted": []}],
+ "changed": [{"key": "Tab3.VOLUME", "label": "Volume", "from": "5", "to": "4"}]}
+```
+
+Before the first successful read: `{"available": false, "online": false}`.
+
+### `GET /api/camera/secret?key=<Section.key>`
+
+Returns one decrypted password from the snapshot: `{"key": "Cloud.sta_pw",
+"value": "..."}` with `Cache-Control: no-store`. 404 for any key that is not a
+password, or when there is no snapshot; 422 `UNDECODABLE_PASSWORD` when the
+stored value does not decrypt to text.
+
+### `GET /hx/camera/panes`
+
+The htmx fragment behind **Settings → Camera** (one pane per tab).
 
 ---
 

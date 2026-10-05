@@ -3,17 +3,20 @@
 fetches and parses /Config/version.bin and /Config/config.ini from the
 dashcam over http (blackvue firmware is http-only). all writes (changing
 settings) are deliberately out of scope; that is a future sub-project.
+secret values (wi-fi passwords) are masked; writes live in the camera
+settings routes.
 """
 
 from __future__ import annotations
 
-import configparser
 import json
 import urllib.request
 
 from flask import Blueprint, Response, current_app
 
 from blackvuesync_v2.server.auth import login_required
+from blackvuesync_v2.server.camera_config import parse, parse_version
+from blackvuesync_v2.server.camera_schema import is_secret
 from blackvuesync_v2.settings import SettingsStore
 
 api_dashcam_bp = Blueprint("api_dashcam_bp", __name__, url_prefix="/api/dashcam")
@@ -46,39 +49,30 @@ def _fetch_text(url: str, timeout: float) -> str | None:
         return None
 
 
-def _parse_version_bin(text: str) -> str:
-    """extracts a clean firmware/model string from version.bin content.
+def _config_sections(text: str) -> dict[str, dict[str, str]]:
+    """parses config.ini text into {section: {key: value}}; first key wins.
 
-    keeps only printable characters and whitespace, then strips; the raw file
-    can carry trailing nulls or control bytes.
+    shares camera_config.parse() so every view of the file agrees on which
+    lines are keys; header-less keys land in the General section.
     """
-    cleaned = "".join(c for c in text if c.isprintable() or c == " ")
-    return cleaned.strip()
+    sections: dict[str, dict[str, str]] = {}
+    for entry in parse(text.encode("utf-8")).entries:
+        sections.setdefault(entry.section, {}).setdefault(entry.key, entry.value)
+    return sections
 
 
-def _parse_config_ini(text: str) -> dict[str, dict[str, str]]:
-    """parses config.ini text into a {section: {key: value}} dict.
+_MASKED = "***"
 
-    uses a permissive parser (strict=False, no interpolation). legacy firmware
-    may omit a leading section header; if so the text is retried under a
-    synthetic [General] section so header-less keys are still captured.
-    returns an empty dict if parsing fails entirely.
-    """
-    parser = configparser.ConfigParser(strict=False, interpolation=None)
-    # preserves original key casing; firmware keys are CamelCase (e.g. Voice).
-    parser.optionxform = str  # type: ignore[assignment,method-assign]
-    try:
-        parser.read_string(text)
-    except configparser.MissingSectionHeaderError:
-        parser = configparser.ConfigParser(strict=False, interpolation=None)
-        parser.optionxform = str  # type: ignore[assignment,method-assign]
-        try:
-            parser.read_string("[General]\n" + text)
-        except configparser.Error:
-            return {}
-    except configparser.Error:
-        return {}
-    return {section: dict(parser.items(section)) for section in parser.sections()}
+
+def _mask_secrets(config: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
+    """hides wi-fi passwords; config.ini encrypts them with a public key."""
+    return {
+        section: {
+            key: _MASKED if value and is_secret(section, key) else value
+            for key, value in keys.items()
+        }
+        for section, keys in config.items()
+    }
 
 
 def _config_preview(
@@ -116,11 +110,16 @@ def _compute_dashcam_info(
     if firmware_raw is None and config_raw is None:
         return {_KEY_AVAILABLE: False, "reason": "dashcam unreachable"}
 
-    config = _parse_config_ini(config_raw) if config_raw else {}
+    config = _mask_secrets(_config_sections(config_raw)) if config_raw else {}
+    firmware = (
+        parse_version(firmware_raw.encode("utf-8")).description
+        if firmware_raw
+        else None
+    )
     return {
         _KEY_AVAILABLE: True,
         "address": address,
-        "firmware": _parse_version_bin(firmware_raw) if firmware_raw else None,
+        "firmware": firmware,
         "config": config,
         "setting_count": sum(len(keys) for keys in config.values()),
     }

@@ -45,3 +45,28 @@
 .settings-toast { font-size: var(--text-footnote); }
 .settings-toast.ok { color: var(--color-success-text); }
 @media (max-width: 720px) { .settings { grid-template-columns: 1fr; } }
+
+/* nav group headings (App / Camera) */
+.settings-nav-heading { font-size: var(--text-caption1); font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--color-label-secondary); padding: var(--space-3) var(--space-3) var(--space-1); }
+
+/* camera settings panes (read-only rows) */
+.camera-status { font-size: var(--text-footnote); color: var(--color-label-secondary); margin-bottom: var(--space-3); }
+.camera-fields { display: grid; gap: var(--space-2); }
+.camera-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-4);
+  padding: var(--space-2) 0; border-bottom: 1px solid var(--color-separator); }
+.camera-field dt { color: var(--color-label); }
+.camera-field dd { color: var(--color-label); overflow-wrap: anywhere; }
+.camera-raw { display: block; font-size: var(--text-caption1); color: var(--color-label-secondary); }
+.camera-reveal { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px;
+  margin-left: var(--space-1); border: 0; border-radius: var(--radius-sm); background: transparent;
+  color: var(--color-accent-text); cursor: pointer; vertical-align: middle; }
+.camera-reveal:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.camera-reveal[aria-pressed="true"] { background: var(--color-fill); }
+.camera-reveal svg { width: 18px; height: 18px; fill: currentColor; }
+.badge-format { display: inline-block; margin-left: var(--space-1); padding: 0 var(--space-2);
+  border-radius: var(--radius-sm); font-size: var(--text-caption1); font-weight: 600;
+  background: color-mix(in srgb, var(--color-error) 16%, transparent); color: var(--color-error-text); }
+.camera-group { margin-top: var(--space-3); }
+.camera-group > summary { cursor: pointer; color: var(--color-label-secondary); }
+@media (max-width: 720px) { .camera-field { grid-template-columns: 1fr; gap: var(--space-1); } }
