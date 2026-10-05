@@ -76,6 +76,7 @@ repos:
           - waitress~=3.0
           - argon2-cffi~=23.1
           - APScheduler~=3.10
+          - cryptography~=50.0
           # click 8.2+ uses match statements; mypy parses it as py39 and fails.
           - click<8.2
 
@@ -90,6 +91,7 @@ repos:
           - waitress~=3.0
           - argon2-cffi~=23.1
           - APScheduler~=3.10
+          - cryptography~=50.0
 
   - repo: https://github.com/sirosen/texthooks
     rev: 0.7.1

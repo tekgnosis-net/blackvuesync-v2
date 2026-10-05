@@ -1,0 +1,70 @@
+{# camera settings panes, one per tab; read-only until editing ships. the
+   refresh button re-reads the camera and swaps this whole fragment. #}
+{% macro rows(fields) %}
+  <dl class="camera-fields">
+    {% for f in fields %}
+      <div class="camera-field">
+        <dt>
+          {{ f.label }}
+          {% if f.formats_card %}<span class="badge badge-format">erases camera recordings</span>{% endif %}
+        </dt>
+        <dd>
+          {% if f.secret %}
+            <span class="camera-secret" data-secret-value="{{ f.key }}">{{ f.value }}</span>
+            {% if f.has_value %}
+              <button type="button" class="camera-reveal" data-reveal="{{ f.key }}"
+                      aria-label="Show password" aria-pressed="false" title="Show password">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5C6.5 5 2.7 9.1 1.5 12c1.2 2.9 5 7 10.5 7s9.3-4.1 10.5-7C21.3 9.1 17.5 5 12 5zm0 11.5A4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg>
+              </button>
+            {% endif %}
+          {% else %}
+            {{ f.value }}
+          {% endif %}
+          <span class="camera-raw">{{ f.key }}{% if f.raw is not none %} = {{ f.raw }}{% endif %}</span>
+          {% if f.help %}<span class="field-help">{{ f.help }}</span>{% endif %}
+        </dd>
+      </div>
+    {% endfor %}
+  </dl>
+{% endmacro %}
+
+{% if tabs %}
+  {% for tab in tabs %}
+    <section class="settings-pane camera-pane" data-pane="camera-{{ tab.name }}">
+      <header class="settings-pane-header">
+        <h2 class="settings-pane-title">Camera &rsaquo; {{ tab.label }}</h2>
+        <button type="button" class="button button-secondary button-sm"
+                hx-get="/hx/camera/panes" hx-target="#camera-panes" hx-swap="innerHTML">Refresh</button>
+      </header>
+      <p class="camera-status">{{ description }} · {% if online %}online{% else %}offline{% endif %}</p>
+      {% if not online %}
+        <div class="alert alert-warning">Camera offline: showing settings read at {{ read_at }}.</div>
+      {% endif %}
+      {% if changed %}
+        <div class="alert alert-info">
+          {{ changed|length }} setting{{ "s" if changed|length != 1 }} changed on the camera since the last read:
+          {% for c in changed %}{{ c.label }} ({{ c.key }}) {{ c["from"] }} → {{ c["to"] }}{{ "; " if not loop.last }}{% endfor %}
+        </div>
+      {% endif %}
+      {{ rows(tab.fields) }}
+      {% if tab.other %}
+        <details class="camera-group" open><summary>Other</summary>{{ rows(tab.other) }}</details>
+      {% endif %}
+      {% if tab.not_fitted %}
+        <details class="camera-group"><summary>Other (not fitted on this camera)</summary>{{ rows(tab.not_fitted) }}</details>
+      {% endif %}
+      <p class="field-help">Editing camera settings arrives in a later release.</p>
+    </section>
+  {% endfor %}
+{% else %}
+  {% for tab in placeholder_tabs %}
+    <section class="settings-pane camera-pane" data-pane="camera-{{ tab.name }}">
+      <header class="settings-pane-header">
+        <h2 class="settings-pane-title">Camera &rsaquo; {{ tab.label }}</h2>
+        <button type="button" class="button button-secondary button-sm"
+                hx-get="/hx/camera/panes" hx-target="#camera-panes" hx-swap="innerHTML">Refresh</button>
+      </header>
+      <p class="camera-status">The camera hasn't been reached yet. Its settings appear here once it's online.</p>
+    </section>
+  {% endfor %}
+{% endif %}

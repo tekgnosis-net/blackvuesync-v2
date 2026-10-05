@@ -1,0 +1,8 @@
+[firmware]
+version = 1.015
+model = DR900X Plus
+language = English
+[config]
+version = 1.071
+[revision]
+rev = 2230

@@ -3,6 +3,7 @@
 // tier toast, the auth-mode confirm, and the change-password dialog.
 
 const TOAST_MS = 4000;
+const MASK = "•".repeat(8);
 
 function csrfToken() {
   const el = document.querySelector('meta[name="csrf-token"]');
@@ -64,15 +65,31 @@ function collectFields(root) {
 
 document.addEventListener("alpine:init", () => {
   Alpine.data("settingsPage", () => ({
+    current: "",
+
     init() {
       // without js, all panes show (one scroll); js-nav switches to single-pane.
       this.$root.classList.add("js-nav");
-      this.activate(this.$root.dataset.initial || "");
+      // a link such as /settings#camera-basic opens that section
+      const wanted = location.hash.slice(1);
+      const known =
+        wanted && this.$root.querySelector(`[data-section-nav="${CSS.escape(wanted)}"]`);
+      this.activate(known ? wanted : this.$root.dataset.initial || "");
+      // the camera panes arrive and refresh via htmx; reveal buttons are
+      // delegated, and a swap re-applies the active pane.
+      this.$root.addEventListener("click", (ev) => {
+        const button = ev.target.closest("[data-reveal]");
+        if (button) this.toggleSecret(button);
+      });
+      document.body.addEventListener("htmx:afterSwap", (ev) => {
+        if (ev.target.id === "camera-panes") this.activate(this.current);
+      });
     },
 
     // toggles the .is-active pane and the .active nav item imperatively (no
     // per-element getters -- the csp build only sees bare @click="method" refs).
     activate(section) {
+      this.current = section;
       this.$root.querySelectorAll("[data-pane]").forEach((p) => {
         p.classList.toggle("is-active", p.dataset.pane === section);
       });
@@ -83,6 +100,43 @@ document.addEventListener("alpine:init", () => {
 
     select(ev) {
       this.activate(ev.currentTarget.dataset.sectionNav);
+    },
+
+    // shows or re-masks one camera password; the value is fetched per click
+    // and dropped again when hidden.
+    async toggleSecret(button) {
+      const key = button.dataset.reveal;
+      const target = this.$root.querySelector(`[data-secret-value="${key}"]`);
+      if (!target) return;
+      if (button.getAttribute("aria-pressed") === "true") {
+        target.textContent = MASK;
+        button.setAttribute("aria-pressed", "false");
+        button.setAttribute("aria-label", "Show password");
+        button.title = "Show password";
+        return;
+      }
+      let resp;
+      try {
+        resp = await fetch("/api/camera/secret?key=" + encodeURIComponent(key), {
+          headers: { Accept: "application/json" },
+        });
+      } catch {
+        target.textContent = "can't be shown right now";
+        return;
+      }
+      const data = await readJson(resp);
+      if (isAuthFailure(resp, data)) {
+        redirectToLogin();
+        return;
+      }
+      if (resp.status !== 200 || !data) {
+        target.textContent = data?.error || "can't be shown";
+        return;
+      }
+      target.textContent = data.value;
+      button.setAttribute("aria-pressed", "true");
+      button.setAttribute("aria-label", "Hide password");
+      button.title = "Hide password";
     },
 
     showToast(section, text) {

@@ -133,3 +133,15 @@ def test_viewer_section_has_two_select_fields() -> None:
     assert specs["speed_unit"].options == ("kmh", "mph")
     assert specs["continuous_play"].widget == "toggle"
     assert specs["continuous_play"].data_type == "bool"
+
+
+def test_camera_section_has_the_read_timeout_field() -> None:
+    from blackvuesync_v2.server.settings_form import SECTION_FIELD_SPECS, SECTION_LABELS
+
+    assert SECTION_LABELS["camera"] == "Camera access"
+    (spec,) = SECTION_FIELD_SPECS["camera"]
+    assert (spec.name, spec.widget, spec.data_type) == (
+        "read_timeout_seconds",
+        "number",
+        "number",
+    )

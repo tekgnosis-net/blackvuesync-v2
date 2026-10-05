@@ -98,8 +98,8 @@ the file on first run; subsequent runs read the file and ignore env vars. The
 file has `0600` permissions and `SettingsStore` refuses to load if the mode is
 wider than that.
 
-Settings are organized into eleven frozen-dataclass sections (schema
-`version` 1):
+Settings are organized into twelve frozen-dataclass sections (schema
+`version` 2):
 
 | Section | TIER | Key fields |
 | --- | --- | --- |
@@ -111,6 +111,7 @@ Settings are organized into eleven frozen-dataclass sections (schema
 | metrics | immediate | file, pushgateway_url, job, instance, state_file |
 | stats | next_tick | retention_days |
 | viewer | immediate | journey_mode, speed_unit, continuous_play |
+| camera | immediate | read_timeout_seconds |
 | web | restart | port, session_lifetime_hours |
 | auth | immediate | mode, username, password_hash, session_secret, trusted_proxies, proxy_user_header |
 | system | restart | destination, dry_run |
@@ -202,7 +203,7 @@ application, structured as follows:
   with `BLACKVUESYNC_TRUST_PROXY`), session cookie settings, and
   attaches `settings_store`, `progress_publisher`, `stats_store` (in-memory
   SQLite when none is passed) and related collaborators to the app instance.
-  Registers the sixteen blueprints listed below and adds the
+  Registers the eighteen blueprints listed below and adds the
   `add_security_headers` after-request hook that injects CSP, X-Frame-Options,
   HSTS, and related headers on every response. CSP `script-src` is `'self'`
   only; templates must not use inline scripts or event handlers (the vendored
@@ -237,6 +238,10 @@ application, structured as follows:
 - `routes/api_health.py` -- `/api/health/storage` and `/api/health/dashcam`.
 - `routes/api_dashcam.py` -- `/api/dashcam/info`; read-only parse of the
   dashcam's `version.bin` and `config.ini`.
+- `routes/api_camera.py` -- `GET /api/camera/config` (live read of the
+  camera's `config.ini` with snapshot fallback and change diff) and
+  `GET /api/camera/secret` (one decrypted password on request).
+- `routes/hx_camera.py` -- `GET /hx/camera/panes`, the read-only Camera panes.
 - `routes/api_recordings.py` -- `/api/recordings/recent`.
 - `routes/api_schedule.py` -- `POST /api/schedule/pause|resume`.
 - `routes/api_logs.py` -- `/api/logs/recent` snapshot and `/api/logs/stream` SSE.
@@ -283,6 +288,13 @@ application, structured as follows:
   directories (Synology `@eaDir`, `#recycle`). `list_recordings()` stays the
   uncached walk. Scale reference: 42,706 recordings (~256k files) render in
   ~2 s cold / ~0.2 s warm.
+- `camera_crypto.py` -- BlackVue Wi-Fi password encoding (AES-128-CBC, public
+  key); the only module that imports `cryptography`.
+- `camera_config.py` -- reads `config.ini` / `version.bin` without rewriting
+  them, keeps the 0700/0600 snapshot under `<settings dir>/camera/` and diffs
+  successive reads.
+- `camera_schema.py` -- labels and display rules for the DR900X Plus keys;
+  unknown keys go under "Other", and password-like names are always masked.
 - `gps.py` / `gsensor.py` -- stdlib parsers for `.gps` (NMEA) and `.3gf`
   (big-endian binary) sidecars; formats in `docs/reference/blackvue-file-formats.md`.
 - `settings_form.py` -- field descriptors that drive the settings page.
@@ -439,6 +451,10 @@ Two logger hierarchies:
 - `test/test_settings_form.py`, `test/test_settings_page.py`,
   `test/test_dashboard_render.py`, `test/test_dashboard_sse_handoff.py` --
   page rendering
+- `test/test_camera_*.py`, `test/test_routes_api_camera.py`,
+  `test/test_routes_hx_camera.py`, `test/e2e/test_camera_settings.py` --
+  camera crypto, config, schema, routes and browser tests; the fixtures in
+  `test/fixtures/camera/` are sanitized (never a real camera file)
 - `test/e2e/` -- Playwright browser tests for the dashboard, settings, logs,
   stats and viewer pages, frontend error handling, and a WCAG AA text-contrast
   audit of every page in light and dark mode (`test_contrast.py`). Deselected by default

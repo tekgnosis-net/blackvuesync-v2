@@ -12,6 +12,24 @@ repository. Versions 2.2.0 and earlier are the upstream
 [BlackVue Sync](https://github.com/acolomba/blackvuesync) by Alessandro
 Colomba; their numbers refer to upstream pull requests.
 
+## Unreleased
+
+### Added
+
+* **Camera settings** (Settings → Camera): every setting stored on the dashcam,
+  read-only, in the BlackVue app's groups (Basic, Sensitivity, System, Wi-Fi,
+  Cloud). Wi-Fi passwords are masked and can be revealed one at a time;
+  settings that make the camera format its card are marked. **Refresh** lists
+  what changed on the camera since the last read. See
+  [Camera settings](https://tekgnosis-net.github.io/blackvuesync-v2/guide/camera-settings/).
+* New `camera.read_timeout_seconds` setting (default 3).
+
+### Security
+
+* The dashboard's dashcam info card and `/api/dashcam/info` returned the
+  camera's Wi-Fi passwords (encrypted with a public key, so readable). They are
+  now masked.
+
 ## 3.1.1 - 2026-09-29
 
 ### Fixed

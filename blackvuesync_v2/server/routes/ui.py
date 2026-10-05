@@ -8,6 +8,7 @@ from pathlib import Path
 from flask import Blueprint, current_app, render_template
 
 from blackvuesync_v2.server.auth import login_required
+from blackvuesync_v2.server.camera_schema import TABS as CAMERA_TABS
 from blackvuesync_v2.server.log_buffer import verbosity_token
 from blackvuesync_v2.server.routes.api_health import _compute_storage
 from blackvuesync_v2.server.routes.api_recordings import _DEFAULT_LIMIT, _compute_recent
@@ -81,6 +82,7 @@ def settings() -> str:
         "settings.html",
         page="settings",
         sections=build_sections(settings_dict),
+        camera_tabs=CAMERA_TABS,
     )
 
 

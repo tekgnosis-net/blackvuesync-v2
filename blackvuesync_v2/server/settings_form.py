@@ -164,6 +164,15 @@ SECTION_FIELD_SPECS: dict[str, tuple[FieldSpec, ...]] = {
             " (normal, event, parking...); off plays only segments of the selected type",
         ),
     ),
+    "camera": (
+        FieldSpec(
+            "read_timeout_seconds",
+            "Camera read timeout (seconds)",
+            "number",
+            "number",
+            help="how long the Camera panes wait before showing the last-known settings",
+        ),
+    ),
     "web": (
         FieldSpec("port", "Port", "number", "number"),
         FieldSpec(
@@ -202,6 +211,7 @@ SECTION_LABELS: dict[str, str] = {
     "metrics": "Metrics",
     "stats": "Statistics",
     "viewer": "Viewer",
+    "camera": "Camera access",
     "web": "Web",
     "auth": "Auth",
     "system": "System",

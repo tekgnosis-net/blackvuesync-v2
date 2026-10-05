@@ -10,9 +10,15 @@
 {% block content %}
 <div class="settings" x-data="settingsPage" data-initial="{{ sections[0].name }}">
   <nav class="settings-nav">
+    <div class="settings-nav-heading">App</div>
     {% for s in sections %}
       <button type="button" class="settings-nav-item" data-section-nav="{{ s.name }}"
               @click="select">{{ s.label }}</button>
+    {% endfor %}
+    <div class="settings-nav-heading">Camera</div>
+    {% for t in camera_tabs %}
+      <button type="button" class="settings-nav-item" data-section-nav="camera-{{ t.name }}"
+              @click="select">{{ t.label }}</button>
     {% endfor %}
   </nav>
 
@@ -41,6 +47,16 @@
         </form>
       </section>
     {% endfor %}
+    <div id="camera-panes" hx-get="/hx/camera/panes" hx-trigger="load" hx-swap="innerHTML">
+      {% for t in camera_tabs %}
+        <section class="settings-pane camera-pane" data-pane="camera-{{ t.name }}">
+          <header class="settings-pane-header">
+            <h2 class="settings-pane-title">Camera &rsaquo; {{ t.label }}</h2>
+          </header>
+          <p class="camera-status">Reading the camera…</p>
+        </section>
+      {% endfor %}
+    </div>
   </div>
 
   {% include "_partials/password_dialog.html" %}

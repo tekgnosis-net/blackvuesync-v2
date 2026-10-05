@@ -115,6 +115,7 @@ def _audit_page(page: Page) -> list[str]:
     return sorted(set(findings))
 
 
+@pytest.mark.usefixtures("fake_camera")
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_all_text_meets_wcag_aa(
     live_server: Any, browser: Browser, scheme: str
@@ -127,6 +128,8 @@ def test_all_text_meets_wcag_aa(
         page.goto(live_server.url + path)
         page.wait_for_load_state("domcontentloaded")
         page.wait_for_timeout(500)
+        if path == "/settings":
+            page.locator("#camera-panes .camera-field").first.wait_for(state="attached")
         if findings := _audit_page(page):
             failures[path] = findings
     context.close()

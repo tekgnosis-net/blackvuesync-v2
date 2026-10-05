@@ -116,6 +116,7 @@ def create_app(  # pylint: disable=too-many-locals,too-many-arguments,too-many-p
 
     # pylint: disable=import-outside-toplevel
     from blackvuesync_v2.server.routes.api_auth import api_auth_bp
+    from blackvuesync_v2.server.routes.api_camera import api_camera_bp
     from blackvuesync_v2.server.routes.api_dashcam import api_dashcam_bp
     from blackvuesync_v2.server.routes.api_health import api_health_bp
     from blackvuesync_v2.server.routes.api_logs import api_logs_bp
@@ -127,6 +128,7 @@ def create_app(  # pylint: disable=too-many-locals,too-many-arguments,too-many-p
     from blackvuesync_v2.server.routes.api_viewer import api_viewer_bp
     from blackvuesync_v2.server.routes.auth import bp as auth_bp
     from blackvuesync_v2.server.routes.health import bp as health_bp
+    from blackvuesync_v2.server.routes.hx_camera import hx_camera_bp
     from blackvuesync_v2.server.routes.hx_dashboard import hx_dashboard_bp
     from blackvuesync_v2.server.routes.hx_sync import hx_sync_bp
     from blackvuesync_v2.server.routes.media import media_bp
@@ -138,6 +140,7 @@ def create_app(  # pylint: disable=too-many-locals,too-many-arguments,too-many-p
     app.register_blueprint(ui_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(api_auth_bp)
+    app.register_blueprint(api_camera_bp)
     app.register_blueprint(api_dashcam_bp)
     app.register_blueprint(api_health_bp)
     app.register_blueprint(api_recordings_bp)
@@ -148,6 +151,7 @@ def create_app(  # pylint: disable=too-many-locals,too-many-arguments,too-many-p
     app.register_blueprint(api_stats_bp)
     app.register_blueprint(api_viewer_bp)
     app.register_blueprint(hx_dashboard_bp)
+    app.register_blueprint(hx_camera_bp)
     app.register_blueprint(hx_sync_bp)
     app.register_blueprint(media_bp)
 

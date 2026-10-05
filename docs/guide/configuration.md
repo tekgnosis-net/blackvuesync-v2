@@ -112,6 +112,12 @@ would delete.
 | `speed_unit` | `kmh` | `kmh` or `mph`. |
 | `continuous_play` | `false` | When on, a journey plays every back-to-back segment (within 2 minutes of the previous) in time order, whatever its type: normal, event, parking and so on. When off, it plays only segments of the type you selected, skipping the others. |
 
+### Camera access
+
+| Field | Default | Description |
+| --- | --- | --- |
+| `read_timeout_seconds` | `3` | How long the Camera settings panes wait for the dashcam (0.5-30). When it doesn't answer in time, they show the last-known settings. |
+
 ### Web
 
 | Field | Default | Description |

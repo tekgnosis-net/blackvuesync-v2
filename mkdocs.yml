@@ -54,6 +54,7 @@ nav:
   - Getting started:
       - Installation: guide/installation.md
       - Configuration: guide/configuration.md
+      - Camera settings: guide/camera-settings.md
       - Command line: guide/cli.md
       - Upgrading: guide/upgrading.md
       - Troubleshooting: guide/troubleshooting.md
