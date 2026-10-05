@@ -392,7 +392,11 @@ to 5 Hz. When no state change occurs for 30 seconds the generator emits
 to prevent nginx-family proxy buffering. `server/sse.py` must not set
 hop-by-hop headers such as `Transfer-Encoding`: waitress rejects them (500).
 At most 16 SSE streams are open at once across endpoints (503
-`TOO_MANY_STREAMS` beyond); waitress runs 32 threads.
+`TOO_MANY_STREAMS` beyond); waitress runs 32 threads. The limiter is
+process-wide and a stream frees its slot only when its next write fails (up
+to 30 s after the client leaves), so `test/e2e/conftest.py` resets it for
+every `live_server`; a reset bumps a generation so late releases from older
+streams never free a newer stream's slot.
 
 **HTMX Fragments** (`/hx/sync/*`, all `@login_required`):
 

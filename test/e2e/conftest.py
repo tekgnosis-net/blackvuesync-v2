@@ -13,7 +13,7 @@ from unittest.mock import patch
 import pytest
 from werkzeug.serving import make_server
 
-from blackvuesync_v2.server import create_app
+from blackvuesync_v2.server import create_app, sse
 from blackvuesync_v2.server.auth import hash_password
 from blackvuesync_v2.settings import SettingsStore
 
@@ -34,6 +34,9 @@ class _LiveServer:
 
 @pytest.fixture()
 def live_server(tmp_path: Path):  # type: ignore[no-untyped-def]
+    # the stream limiter is process-wide; streams left open by earlier tests
+    # only release their slot on their next write (up to 30 s later)
+    sse._LIMITER.reset()  # pylint: disable=protected-access
     destination = tmp_path / "recordings"
     destination.mkdir()
     with patch.dict(os.environ, {"ADDRESS": "192.168.0.1"}, clear=False):
