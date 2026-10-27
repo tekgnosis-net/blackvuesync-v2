@@ -8,6 +8,7 @@ import logging
 import threading
 import time
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -21,6 +22,18 @@ logger = logging.getLogger(__name__)
 # process-wide lock; held for the duration of an active sync; non-reentrant
 # so a second trigger while running returns "already_running" immediately.
 _sync_lock = threading.Lock()
+
+
+@contextlib.contextmanager
+def try_hold_sync_lock() -> Iterator[bool]:
+    """holds the sync lock for the block when free; yields False when a sync runs."""
+    held = _sync_lock.acquire(blocking=False)  # pylint: disable=consider-using-with
+    try:
+        yield held
+    finally:
+        if held:
+            _sync_lock.release()
+
 
 # reference to the current sync thread; useful for diagnostics
 _current_thread: threading.Thread | None = None

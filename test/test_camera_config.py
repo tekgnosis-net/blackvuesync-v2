@@ -426,3 +426,17 @@ def test_backup_save_twice_in_one_second_keeps_both(tmp_path: Path) -> None:
     first = store.save(b"a", now=when)
     second = store.save(b"b", now=when)
     assert first != second and store.read(second) == b"b"
+
+
+def test_backup_list_orders_same_second_saves_by_mtime_then_name(
+    tmp_path: Path,
+) -> None:
+    store = BackupStore(tmp_path / "backups")
+    when = datetime.datetime(2026, 10, 27, 21, 0, 0).astimezone()
+    first = store.save(b"a", now=when)
+    second = store.save(b"b", now=when)
+    assert second == first.replace(".ini", "-1.ini")
+    directory = tmp_path / "backups"
+    os.utime(directory / first, (1_000_000, 1_000_000))
+    os.utime(directory / second, (1_000_100, 1_000_100))
+    assert [b.name for b in store.list()] == [second, first]

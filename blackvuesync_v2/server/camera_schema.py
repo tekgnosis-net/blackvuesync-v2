@@ -472,7 +472,11 @@ def validate_change(  # pylint: disable=too-many-return-statements,too-many-bran
     if field.secret:
         if value == "" and key != "ap_pw":
             return []
-        return [] if 8 <= len(value) <= 32 else [f"{name}: 8 to 32 characters"]
+        return (
+            []
+            if 8 <= len(value.encode("utf-8")) <= 32
+            else [f"{name}: 8 to 32 characters"]
+        )
     if field.key == "TimeZone":
         if _valid_offset(value):
             return []

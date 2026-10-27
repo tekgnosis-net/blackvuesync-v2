@@ -276,3 +276,11 @@ def test_prepare_changes_encrypts_passwords_and_collects_errors() -> None:
         "Tab3.VOLUME: must be a whole number",
         "nodot: expected Section.key",
     ]
+
+
+def test_password_length_counts_utf8_bytes() -> None:
+    message = ["Wifi.ap_pw: 8 to 32 characters"]
+    assert validate_change("Wifi", "ap_pw", "ü" * 17) == message
+    assert validate_change("Wifi", "ap_pw", "ü" * 16) == []
+    assert validate_change("Wifi", "ap_pw", "ü" * 3) == message
+    assert validate_change("Wifi", "ap_pw", "ü" * 4) == []

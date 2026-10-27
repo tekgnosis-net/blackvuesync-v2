@@ -14,6 +14,11 @@ import logging
 from flask import Blueprint, Response, abort, current_app, request
 
 from blackvuesync_v2.server.auth import login_required
+from blackvuesync_v2.server.camera_apply import (
+    ApplyRefused,
+    apply_changes,
+    pending_recordings,
+)
 from blackvuesync_v2.server.camera_config import (
     CameraRead,
     CameraStore,
@@ -137,6 +142,48 @@ def secret() -> Response:
     resp = _json({"key": f"{section}.{key}", "value": value})
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+@api_camera_bp.route("/pending", methods=["GET"])
+@login_required
+def pending() -> Response:
+    """counts recordings still only on the camera (the format gate)."""
+    store: SettingsStore = current_app.settings_store  # type: ignore[attr-defined]
+    count = pending_recordings(store.get())
+    if count is None:
+        return _json(
+            {"code": "CAMERA_OFFLINE", "error": "the camera is not reachable"}, 409
+        )
+    return _json({"pending": count})
+
+
+@api_camera_bp.route("/config", methods=["POST"])
+@login_required
+def apply() -> Response:
+    """applies staged changes to the camera."""
+    store: SettingsStore = current_app.settings_store  # type: ignore[attr-defined]
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        body = {}
+    raw = body.get("changes")
+    if not isinstance(raw, dict) or not all(isinstance(v, str) for v in raw.values()):
+        return _json(
+            {
+                "code": "INVALID_CHANGES",
+                "error": "changes must map Section.key to text",
+            },
+            422,
+        )
+    try:
+        result = apply_changes(
+            store, raw, bool(body.get("confirm_format")), bool(body.get("accept_loss"))
+        )
+    except ApplyRefused as refused:
+        return _json(
+            {"code": refused.code, "error": str(refused), **refused.detail},
+            refused.status,
+        )
+    return _json(dataclasses.asdict(result))
 
 
 __all__ = [

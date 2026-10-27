@@ -439,7 +439,7 @@ class BackupStore:
                         size=stat_result.st_size,
                     )
                 )
-        return sorted(infos, key=lambda b: b.name, reverse=True)
+        return sorted(infos, key=lambda b: (b.created, b.name), reverse=True)
 
     def prune(self, keep: int) -> None:
         """deletes all but the newest keep backups."""

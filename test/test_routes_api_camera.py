@@ -8,6 +8,7 @@ import dataclasses
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -192,3 +193,89 @@ def test_camera_api_requires_login(tmp_path: Path, camera: FakeCamera) -> None:
     anon = create_app(store, testing=True).test_client()
     assert anon.get("/api/camera/config").status_code == 401
     assert anon.get("/api/camera/secret?key=Cloud.sta_pw").status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# pending count and apply
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()  # type: ignore[misc]
+def apply_camera(monkeypatch: pytest.MonkeyPatch) -> Any:
+    from test_camera_apply import FakeCamera as ApplyCamera
+
+    from blackvuesync_v2.server import camera_apply
+
+    fake = ApplyCamera()
+    monkeypatch.setattr(camera_config, "_get", fake.get)
+    monkeypatch.setattr(camera_config, "_post", fake.post)
+    monkeypatch.setattr(
+        camera_apply, "get_dashcam_filenames", lambda _url: list(fake.vod)
+    )
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    return fake
+
+
+def test_pending_counts_and_reports_offline(
+    client: Any, apply_camera: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from blackvuesync_v2.server import camera_apply
+
+    resp = client.get("/api/camera/pending")
+    assert (resp.status_code, resp.get_json()) == (200, {"pending": 0})
+
+    def boom(_url: str) -> list[str]:
+        raise RuntimeError("no route")
+
+    monkeypatch.setattr(camera_apply, "get_dashcam_filenames", boom)
+    resp = client.get("/api/camera/pending")
+    assert resp.status_code == 409
+    assert resp.get_json()["code"] == "CAMERA_OFFLINE"
+
+
+def test_apply_changes_route(client: Any, apply_camera: Any) -> None:
+    resp = client.post("/api/camera/config", json={"changes": {"Tab3.VOLUME": "4"}})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["verified"] is True and data["came_back"] is True
+    assert data["changed"] == ["Tab3.VOLUME"]
+
+
+def test_apply_changes_route_rejects_bad_bodies(client: Any, apply_camera: Any) -> None:
+    for body in (None, {}, {"changes": "x"}, {"changes": {"Tab3.VOLUME": 4}}):
+        resp = client.post("/api/camera/config", json=body)
+        assert resp.status_code == 422
+        assert resp.get_json()["code"] == "INVALID_CHANGES"
+    resp = client.post("/api/camera/config", json={"changes": {"Tab3.VOLUME": "x"}})
+    assert (resp.status_code, resp.get_json()["code"]) == (422, "INVALID_CHANGES")
+
+
+def test_apply_format_key_needs_confirmation(client: Any, apply_camera: Any) -> None:
+    apply_camera.vod = ["20261027_210000_NF.mp4"]
+    resp = client.post(
+        "/api/camera/config", json={"changes": {"Tab1.TimeZone": "1100"}}
+    )
+    assert resp.status_code == 409
+    data = resp.get_json()
+    assert (data["code"], data["pending"]) == ("FORMAT_CONFIRMATION_REQUIRED", 1)
+    assert apply_camera.uploads == []
+
+
+def test_apply_requires_login_and_csrf(tmp_path: Path) -> None:
+    with patch.dict(os.environ, {"ADDRESS": "192.0.2.10"}, clear=False):
+        store = SettingsStore(tmp_path / "settings.json")
+    pw_hash = hash_password("pw-1234-test")
+    store.update(
+        lambda s: dataclasses.replace(
+            s, auth=dataclasses.replace(s.auth, password_hash=pw_hash)
+        )
+    )
+    anon = create_app(store, testing=True).test_client()
+    resp = anon.post("/api/camera/config", json={"changes": {"Tab3.VOLUME": "4"}})
+    assert resp.status_code == 401
+    strict = create_app(store, testing=False).test_client()
+    with strict.session_transaction() as sess:
+        sess["user"] = "admin"
+        sess[SESSION_VERSION_KEY] = session_version(pw_hash)
+    resp = strict.post("/api/camera/config", json={"changes": {"Tab3.VOLUME": "4"}})
+    assert resp.status_code == 400
