@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import datetime
+import email.message
 import http.client
 import logging
 import os
 import stat
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -19,12 +22,18 @@ from blackvuesync_v2.server.camera_config import (
     CameraRead,
     CameraStore,
     Change,
+    PatchError,
+    UploadError,
     VersionInfo,
     diff,
     fetch,
     parse,
     parse_version,
+    patch,
     safe_text,
+    self_check,
+    upload,
+    wait_until_back,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "camera"
@@ -282,3 +291,101 @@ def test_failed_save_cleans_up_its_temp_file(
     with pytest.raises(OSError):
         store.save(_read())
     assert list((tmp_path / "camera").glob("*.tmp")) == []
+
+
+def test_patch_rewrites_only_the_changed_values() -> None:
+    raw = b"[Tab1]\r\nVOLUME = 5\r\n[Wifi]\r\nap_ssid=Cam\r\nVOLUME=1\r\n"
+    out = patch(raw, {("Tab1", "VOLUME"): "4", ("Wifi", "ap_ssid"): "Cam2"})
+    assert out == b"[Tab1]\r\nVOLUME = 4\r\n[Wifi]\r\nap_ssid=Cam2\r\nVOLUME=1\r\n"
+    assert patch(CONFIG, {}) == CONFIG
+
+
+def test_patch_keeps_every_other_byte_of_the_fixture() -> None:
+    out = patch(CONFIG, {("Tab3", "VOLUME"): "4"})
+    assert out.count(b"\n") == CONFIG.count(b"\n")
+    assert parse(out).value("Tab3", "VOLUME") == "4"
+    assert [e for e in parse(out).entries if e.key != "VOLUME"] == [
+        e for e in parse(CONFIG).entries if e.key != "VOLUME"
+    ]
+
+
+def test_patch_refuses_missing_duplicate_and_control_characters() -> None:
+    """review focus 1: a duplicated key is ambiguous, so nothing is written."""
+    with pytest.raises(PatchError):
+        patch(b"[Tab1]\nVOLUME=5\n", {("Tab1", "Missing"): "1"})
+    with pytest.raises(PatchError):
+        patch(b"[Tab1]\nVOLUME=5\nVOLUME=6\n", {("Tab1", "VOLUME"): "4"})
+    with pytest.raises(PatchError):
+        patch(b"[Tab1]\nVOLUME=5\n", {("Tab1", "VOLUME"): "4\n[Wifi]\nap_pw=x"})
+
+
+def test_self_check_catches_a_tampered_patch() -> None:
+    before = b"[Tab1]\nVOLUME=5\nRECLED=1\n"
+    self_check(before, b"[Tab1]\nVOLUME=4\nRECLED=1\n", {("Tab1", "VOLUME"): "4"})
+    with pytest.raises(PatchError):
+        self_check(before, b"[Tab1]\nVOLUME=4\nRECLED=0\n", {("Tab1", "VOLUME"): "4"})
+    with pytest.raises(PatchError):
+        self_check(before, b"[Tab1]\nVOLUME=5\nRECLED=1\n", {("Tab1", "VOLUME"): "4"})
+
+
+def test_upload_posts_a_multipart_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_post(url: str, body: bytes, content_type: str, timeout: float) -> int:
+        seen.update(url=url, body=body, content_type=content_type, timeout=timeout)
+        return 200
+
+    monkeypatch.setattr(camera_config, "_post", fake_post)
+    assert upload("cam", b"[Tab1]\nVOLUME=4\n", 9.0) == 200
+    assert seen["url"] == "http://cam/upload.cgi"
+    content_type = str(seen["content_type"])
+    assert content_type.startswith("multipart/form-data; boundary=")
+    boundary = content_type.split("boundary=", 1)[1].encode()
+    body = cast(bytes, seen["body"])
+    assert body.count(b"--" + boundary) == 3  # two parts plus the closing line
+    assert b'name="FileType"\r\n\r\nconfig\r\n' in body
+    assert b'name="FileData"; filename="config.ini"' in body
+    assert b"\r\n\r\n[Tab1]\nVOLUME=4\n\r\n" in body
+    assert body.endswith(b"--" + boundary + b"--\r\n")
+
+
+def test_upload_failures_raise_upload_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def refuse(*_args: Any, **_kwargs: Any) -> Any:
+        raise urllib.error.HTTPError(
+            "http://cam/upload.cgi", 500, "boom", email.message.Message(), None
+        )
+
+    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+    with pytest.raises(UploadError) as caught:
+        upload("cam", b"x", 1.0)
+    assert caught.value.status == 500
+
+    def drop(*_args: Any, **_kwargs: Any) -> Any:
+        raise http.client.RemoteDisconnected("closed")
+
+    monkeypatch.setattr(urllib.request, "urlopen", drop)
+    with pytest.raises(UploadError) as caught2:
+        upload("cam", b"x", 1.0)
+    assert caught2.value.status is None
+
+
+def test_wait_until_back_polls_until_the_camera_answers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    answers = iter([None, None, CONFIG])
+    monkeypatch.setattr(
+        camera_config,
+        "_get",
+        lambda url, _timeout: next(answers) if url.endswith("config.ini") else VERSION,
+    )
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    read = wait_until_back("cam", timeout=10.0, poll=0.01)
+    assert read is not None and read.config.raw == CONFIG
+
+
+def test_wait_until_back_gives_up(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(camera_config, "_get", lambda _url, _timeout: None)
+    clock = iter([0.0, 0.0, 5.0, 11.0, 12.0])
+    monkeypatch.setattr(time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    assert wait_until_back("cam", timeout=10.0, poll=1.0) is None

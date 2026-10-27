@@ -17,7 +17,10 @@ import os
 import re
 import stat
 import tempfile
+import time
+import urllib.error
 import urllib.request
+import uuid
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -262,17 +265,149 @@ class CameraStore:
         )
 
 
+class PatchError(ValueError):
+    """the requested change cannot be applied to this file unambiguously."""
+
+
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def patch(raw: bytes, changes: dict[tuple[str, str], str]) -> bytes:
+    """rewrites the value of each changed key in place; every other byte stays.
+
+    a key that is missing or duplicated in its section raises PatchError, as
+    does a value with control characters (which could inject lines).
+    """
+    for (section, key), value in changes.items():
+        if _CONTROL_RE.search(value):
+            raise PatchError(f"{section}.{key}: value contains control characters")
+    pending = dict(changes)
+    seen: set[tuple[str, str]] = set()
+    out: list[bytes] = []
+    section = GENERAL_SECTION
+    for line in raw.splitlines(keepends=True):
+        body = line.decode("utf-8", errors="surrogateescape").rstrip("\r\n")
+        if body.strip().startswith("[") and body.strip().endswith("]"):
+            section = body.strip()[1:-1].strip()
+            out.append(line)
+            continue
+        key, sep, _ = body.partition("=")
+        name = key.strip()
+        if not sep or not _KEY_RE.fullmatch(name):
+            out.append(line)
+            continue
+        if (section, name) in seen and (section, name) in changes:
+            raise PatchError(f"{section}.{name}: key appears more than once")
+        seen.add((section, name))
+        if (section, name) in pending:
+            value = pending.pop((section, name))
+            # keeps the key text and its spacing up to "=" exactly as written
+            head = key + "=" + (" " if key.endswith(" ") else "") + value
+            out.append(
+                head.encode("utf-8", errors="surrogateescape")
+                + line[len(body.encode("utf-8", errors="surrogateescape")) :]
+            )
+        else:
+            out.append(line)
+    if pending:
+        missing = ", ".join(f"{s}.{k}" for s, k in pending)
+        raise PatchError(f"not in the camera's file: {missing}")
+    return b"".join(out)
+
+
+def self_check(
+    before: bytes, after: bytes, changes: dict[tuple[str, str], str]
+) -> None:
+    """asserts that after differs from before only in the changed keys."""
+    old = _first_values(parse(before))
+    new = _first_values(parse(after))
+    if set(old) != set(new):
+        raise PatchError("patched file has a different set of keys")
+    for name, value in new.items():
+        expected = changes.get(name, old[name])
+        if value != expected:
+            raise PatchError(f"{name[0]}.{name[1]} is {value!r}, expected {expected!r}")
+
+
+class UploadError(RuntimeError):
+    """the camera did not accept the upload; status is None for transport errors."""
+
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+
+
+def _post(url: str, body: bytes, content_type: str, timeout: float) -> int:
+    """POSTs body and returns the HTTP status; raises UploadError otherwise."""
+    request = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={"Content-Type": content_type, "Content-Length": str(len(body))},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as resp:  # noqa: S310
+            resp.read()
+            status: int = resp.status
+            return status
+    except urllib.error.HTTPError as error:
+        raise UploadError(f"camera answered {error.code}", status=error.code) from error
+    except (OSError, ValueError, http.client.HTTPException) as error:
+        raise UploadError(f"upload failed: {error}") from error
+
+
+def upload(address: str, raw: bytes, timeout: float) -> int:
+    """uploads raw as the camera's config.ini (upload.cgi, FileType=config)."""
+    boundary = "----blackvuesync-" + uuid.uuid4().hex
+    bound = boundary.encode()
+    body = b"".join(
+        [
+            b"--" + bound + b"\r\n",
+            b'Content-Disposition: form-data; name="FileType"\r\n\r\nconfig\r\n',
+            b"--" + bound + b"\r\n",
+            b'Content-Disposition: form-data; name="FileData"; filename="config.ini"\r\n',
+            b"Content-Type: application/octet-stream\r\n\r\n",
+            raw,
+            b"\r\n--" + bound + b"--\r\n",
+        ]
+    )
+    return _post(
+        f"http://{address}/upload.cgi",
+        body,
+        f"multipart/form-data; boundary={boundary}",
+        timeout,
+    )
+
+
+def wait_until_back(address: str, timeout: float, poll: float) -> CameraRead | None:
+    """polls config.ini until the camera answers or timeout seconds pass."""
+    deadline = time.monotonic() + timeout
+    while True:
+        read = fetch(address, min(poll, 5.0) if poll > 0 else 1.0)
+        if read is not None:
+            return read
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(poll)
+
+
 __all__ = [
     "GENERAL_SECTION",
     "CameraFile",
     "CameraRead",
     "CameraStore",
     "Change",
+    "PatchError",
     "ConfigEntry",
+    "UploadError",
     "VersionInfo",
     "diff",
     "fetch",
     "parse",
     "parse_version",
+    "patch",
     "safe_text",
+    "self_check",
+    "upload",
+    "wait_until_back",
 ]
