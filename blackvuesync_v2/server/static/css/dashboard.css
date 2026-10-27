@@ -248,44 +248,6 @@ body[data-state="complete"] .idle-only {
   color: var(--color-label-secondary);
 }
 
-/* ---------------------------------------------------------------------------
-   stop confirmation modal
-   --------------------------------------------------------------------------- */
-
-dialog.modal::backdrop {
-  background: rgba(0, 0, 0, 0.4);
-}
-
-/* native <dialog> is display:none until opened; centering via margin:auto. */
-dialog.modal {
-  background-color: var(--color-surface);
-  border: none;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-prominent);
-  padding: var(--space-6);
-  max-width: 400px;
-  width: 100%;
-  margin: auto;
-}
-
-.modal-title {
-  font-size: var(--text-subheadline);
-  font-weight: 700;
-  margin-bottom: var(--space-2);
-}
-
-.modal-body {
-  font-size: var(--text-footnote);
-  color: var(--color-label-secondary);
-  margin-bottom: var(--space-4);
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
-
 /* link from the dashcam info card to settings > camera */
 .camera-link { display: inline-block; margin-top: var(--space-2); font-size: var(--text-footnote);
   color: var(--color-accent-text); }

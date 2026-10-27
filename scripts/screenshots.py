@@ -17,6 +17,10 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import datetime
+import email
+import email.message
+import email.parser
+import email.policy
 import http.server
 import json
 import math
@@ -287,6 +291,7 @@ class DemoDashcam(http.server.ThreadingHTTPServer):
                 self.files[f"{stem}.mp4"] = clip.read_bytes()
                 self.files[f"{stem}.thm"] = media.thumb.read_bytes()
             self.files.update(sidecars(rec))
+        self.config = CONFIG_INI.encode()  # replaced by upload.cgi
         self.bytes_per_second = 900_000  # slow enough to capture progress
         super().__init__(("127.0.0.1", port), _DashcamHandler)
 
@@ -320,11 +325,35 @@ class _DashcamHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/Config/version.bin":
             self._send(VERSION_BIN)
         elif path == "/Config/config.ini":
-            self._send(CONFIG_INI.encode())
+            self._send(self.server.config)
         elif path.startswith("/Record/") and path[8:] in self.server.files:
             self._stream(self.server.files[path[8:]])
         else:
             self.send_error(404)
+
+    def do_POST(self) -> None:  # noqa: N802
+        """accepts a config upload like the camera's upload.cgi."""
+        if self.path != "/upload.cgi":
+            self.send_error(404)
+            return
+        length = int(self.headers.get("Content-Length", "0"))
+        message = email.parser.BytesParser(
+            email.message.EmailMessage, policy=email.policy.HTTP
+        ).parsebytes(
+            b"Content-Type: "
+            + self.headers["Content-Type"].encode()
+            + b"\r\n\r\n"
+            + self.rfile.read(length)
+        )
+        parts: dict[str, bytes] = {}
+        for part in message.iter_parts():
+            name = part.get_param("name", header="content-disposition")
+            parts[str(name)] = bytes(part.get_payload(decode=True))
+        if parts.get("FileType") != b"config" or "FileData" not in parts:
+            self.send_error(400)
+            return
+        self.server.config = parts["FileData"]
+        self._send(b"OK")
 
     def _stream(self, body: bytes) -> None:
         self.send_response(200)
@@ -520,6 +549,21 @@ def capture(base: str, out: Path) -> None:
         page.locator('[data-section-nav="camera-cloud"]').click()
         page.locator("#camera-panes .camera-field").first.wait_for(state="attached")
         shot(page, "camera-settings")
+
+        # stages two invented edits and shows the review dialog, unapplied
+        page.evaluate(
+            "() => { for (const [key, value] of [['Tab3.VOLUME', '4'],"
+            " ['Tab1.VideoQuality', '2']]) {"
+            " const el = document.querySelector(`[data-camera-key='${key}']`);"
+            " el.value = value;"
+            " el.dispatchEvent(new Event('change', { bubbles: true })); } }"
+        )
+        page.get_by_role("button", name="Review & apply").click()
+        page.wait_for_selector("#camera-review[open] [data-review-rows] tr")
+        page.wait_for_selector("#camera-review [data-review-format]:not([hidden])")
+        shot(page, "camera-review")
+        page.click("[data-review-cancel]")
+        page.get_by_role("button", name="Discard").click()
 
         viewer(page, "viewer")
 

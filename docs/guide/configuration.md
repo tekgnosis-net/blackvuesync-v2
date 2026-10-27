@@ -114,6 +114,8 @@ would delete.
 
 ### Camera access
 
+These control editing as well as reading; see [Camera settings](camera-settings.md).
+
 | Field | Default | Description |
 | --- | --- | --- |
 | `read_timeout_seconds` | `3` | How long the Camera settings panes wait for the dashcam (0.5-30). When it doesn't answer in time, they show the last-known settings. |

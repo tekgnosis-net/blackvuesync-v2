@@ -488,8 +488,8 @@ When no address is configured:
 Read-only inspection of the dashcam's on-camera configuration. Fetches
 `http://<address>/Config/version.bin` and `http://<address>/Config/config.ini`
 (BlackVue firmware is HTTP-only), parses them defensively, and returns
-structured JSON. Changing settings is deliberately out of scope (a future
-sub-project); this endpoint never writes to the camera, and Wi-Fi passwords in
+structured JSON. This endpoint never writes to the camera (the camera endpoints below
+do), and Wi-Fi passwords in
 `config` are always `"***"` (so are unknown keys named like passwords). `firmware`
 is `"<model> · fw <version>"`.
 
@@ -548,6 +548,83 @@ Returns one decrypted password from the snapshot: `{"key": "Cloud.sta_pw",
 "value": "..."}` with `Cache-Control: no-store`. 404 for any key that is not a
 password, or when there is no snapshot; 422 `UNDECODABLE_PASSWORD` when the
 stored value does not decrypt to text.
+
+### `GET /api/camera/pending`
+
+Counts the recordings that are on the camera but not downloaded yet (after
+the include and exclude filters): what a card format would destroy.
+
+```json
+{"pending": 3}
+```
+
+409 `CAMERA_OFFLINE` when the camera's recording list cannot be read.
+
+### `POST /api/camera/config`
+
+Applies staged changes: reads the camera's `config.ini` fresh, checks the
+format gate, patches the file, saves a backup, uploads it, waits for the
+camera to answer (`camera.verify_timeout_seconds`, polling every
+`camera.verify_poll_seconds`) and reads it back. Holds the sync lock for the
+whole call, so it can take two minutes or more. CSRF-protected.
+
+```json
+{"changes": {"Tab3.VOLUME": "4", "Tab1.TimeZone": "1000"},
+ "confirm_format": true, "accept_loss": true}
+```
+
+`changes` maps `Section.key` to a text value (passwords are plain text here
+and are encoded for you). `confirm_format` and `accept_loss` default to
+`false` and count only when they are exactly `true`.
+
+200 on any upload that the camera accepted:
+
+```json
+{"verified": true, "came_back": true, "kept": [], "backup": "config-20261027-101500.ini",
+ "changed": ["Tab3.VOLUME", "Wifi.ap_pw (changed)"]}
+```
+
+`verified` is true when the camera came back and holds every value. When it
+came back but replaced some values, `verified` is false and `kept` lists those
+keys. When it did not answer within the window, `came_back` is false (and
+`kept` is empty).
+
+The format gate: when `changes` includes a key that makes the camera format
+its card (the `formats_card` fields: the time settings and image quality),
+the call needs `confirm_format: true`, and, when `pending` recordings exist,
+`accept_loss: true` as well. Otherwise it answers 409
+`FORMAT_CONFIRMATION_REQUIRED` with the count: `{"code":
+"FORMAT_CONFIRMATION_REQUIRED", "error": "...", "pending": 3}`. This is a
+warning the caller may accept, not a block.
+
+Errors (body `{"code": ..., "error": ...}`; some add fields):
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| 422 | `INVALID_CHANGES` | `changes` is not an object of strings, a key or value is invalid, or the camera's file could not be patched. Validation messages are in `errors` (a list), when present. |
+| 422 | `NO_CHANGES` | `changes` is empty after validation. |
+| 409 | `SYNC_RUNNING` | a sync holds the lock; nothing was changed. |
+| 409 | `CAMERA_OFFLINE` | the camera could not be read (or listed, for the format gate). |
+| 409 | `FORMAT_CONFIRMATION_REQUIRED` | see above; includes `pending`. |
+| 500 | `PATCH_CHECK_FAILED` | the patched file differed from the original in more than the requested keys; nothing was uploaded. |
+| 502 | `UPLOAD_FAILED` | the camera rejected or dropped the upload; includes `backup`. |
+
+### `GET /api/camera/backups`
+
+Lists the saved copies of `config.ini`, newest first:
+
+```json
+[{"name": "config-20261027-101500.ini",
+  "created": "2026-10-27T00:15:00+00:00", "size": 5120}]
+```
+
+### `POST /api/camera/backups/<name>/restore`
+
+Applies the differences between a backup and the camera's current file, with
+the same pipeline and the same response as `POST /api/camera/config`. The
+optional body takes `confirm_format` and `accept_loss`. Errors are those
+above (there is no `changes` to validate), plus 404 `NO_SUCH_BACKUP`; 422
+`NO_CHANGES` means the camera already has the backup's settings.
 
 ### `GET /hx/camera/panes`
 

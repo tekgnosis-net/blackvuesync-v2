@@ -14,6 +14,29 @@ Colomba; their numbers refer to upstream pull requests.
 
 ## Unreleased
 
+### Added
+
+* Camera settings are now editable from **Settings → Camera**. Edits are
+  staged, counted in an apply bar and checked in a **Review & apply** dialog.
+  Applying reads the camera's `config.ini` fresh, saves a backup, uploads the
+  patched file, waits for the camera to restart and verifies the result,
+  reporting "applied and verified" or the keys the camera kept its own value
+  for. See the
+  [guide](https://tekgnosis-net.github.io/blackvuesync-v2/guide/camera-settings/).
+* Time and image-quality settings make the camera format its card. The review
+  dialog now warns, counts the recordings not yet downloaded, and requires
+  ticking two confirmations (`confirm_format`, `accept_loss`) before applying.
+  It is a warning, not a block.
+* A **Backups** pane lists the copies of `config.ini` saved before every apply
+  (in `camera/backups/` next to `settings.json`) and restores one through the
+  same review.
+* Applying holds the sync lock: a scheduled sync is skipped meanwhile, and
+  applying is refused (`SYNC_RUNNING`) while a sync runs.
+* New settings `camera.backup_count`, `camera.verify_timeout_seconds` and
+  `camera.verify_poll_seconds`.
+* New endpoints `GET /api/camera/pending`, `POST /api/camera/config`,
+  `GET /api/camera/backups` and `POST /api/camera/backups/<name>/restore`.
+
 ### Fixed
 
 * The Logs page showed timestamps in UTC (for example `…T10:42:17.186Z`),
