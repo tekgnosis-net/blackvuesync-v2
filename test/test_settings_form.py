@@ -139,9 +139,11 @@ def test_camera_section_has_the_read_timeout_field() -> None:
     from blackvuesync_v2.server.settings_form import SECTION_FIELD_SPECS, SECTION_LABELS
 
     assert SECTION_LABELS["camera"] == "Camera access"
-    (spec,) = SECTION_FIELD_SPECS["camera"]
-    assert (spec.name, spec.widget, spec.data_type) == (
+    specs = SECTION_FIELD_SPECS["camera"]
+    assert [spec.name for spec in specs] == [
         "read_timeout_seconds",
-        "number",
-        "number",
-    )
+        "backup_count",
+        "verify_timeout_seconds",
+        "verify_poll_seconds",
+    ]
+    assert all((spec.widget, spec.data_type) == ("number", "number") for spec in specs)

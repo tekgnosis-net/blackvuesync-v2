@@ -117,6 +117,9 @@ would delete.
 | Field | Default | Description |
 | --- | --- | --- |
 | `read_timeout_seconds` | `3` | How long the Camera settings panes wait for the dashcam (0.5-30). When it doesn't answer in time, they show the last-known settings. |
+| `backup_count` | `10` | How many copies of the camera's `config.ini` are kept before each change (1-100). Backups go in the `camera/backups/` folder next to `settings.json`. |
+| `verify_timeout_seconds` | `120` | How long a change waits for the camera to answer after the upload, since it may reboot (10-600). |
+| `verify_poll_seconds` | `5` | Seconds between read-back attempts while waiting for the camera (1-30). |
 
 ### Web
 

@@ -532,12 +532,24 @@ class CameraSettings(_Section):
     # seconds each camera settings read waits; short, so an absent car does not
     # stall the settings page
     read_timeout_seconds: float = 3.0
+    # copies of the camera's file kept before each upload
+    backup_count: int = 10
+    # how long an apply waits for the camera after an upload (it may reboot)
+    verify_timeout_seconds: float = 120.0
+    # seconds between read-back attempts while waiting
+    verify_poll_seconds: float = 5.0
 
     def _validate_values(self) -> list[str]:
         """validates camera settings; returns a list of error strings."""
         errors: list[str] = []
         if not 0.5 <= self.read_timeout_seconds <= 30:
             errors.append("camera.read_timeout_seconds must be between 0.5 and 30")
+        if not 1 <= self.backup_count <= 100:
+            errors.append("camera.backup_count must be between 1 and 100")
+        if not 10 <= self.verify_timeout_seconds <= 600:
+            errors.append("camera.verify_timeout_seconds must be between 10 and 600")
+        if not 1 <= self.verify_poll_seconds <= 30:
+            errors.append("camera.verify_poll_seconds must be between 1 and 30")
         return errors
 
 

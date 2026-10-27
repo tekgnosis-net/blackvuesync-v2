@@ -172,6 +172,26 @@ SECTION_FIELD_SPECS: dict[str, tuple[FieldSpec, ...]] = {
             "number",
             help="how long the Camera panes wait before showing the last-known settings",
         ),
+        FieldSpec(
+            "backup_count",
+            "Backups to keep",
+            "number",
+            "number",
+            help="copies of the camera's settings file kept before each change (1-100)",
+        ),
+        FieldSpec(
+            "verify_timeout_seconds",
+            "Verify timeout (seconds)",
+            "number",
+            "number",
+            help="how long to wait for the camera after a change; it may reboot (10-600)",
+        ),
+        FieldSpec(
+            "verify_poll_seconds",
+            "Verify poll interval (seconds)",
+            "number",
+            "number",
+        ),
     ),
     "web": (
         FieldSpec("port", "Port", "number", "number"),

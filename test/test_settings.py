@@ -1399,3 +1399,23 @@ def test_camera_section_defaults_and_bounds() -> None:
         ]
     # files written before the section existed load the default
     assert _settings_from_dict({"version": 2}).camera.read_timeout_seconds == 3.0
+
+
+def test_camera_apply_knobs_defaults_and_bounds() -> None:
+    from blackvuesync_v2.settings import CameraSettings
+
+    cam = CameraSettings()
+    assert (cam.backup_count, cam.verify_timeout_seconds, cam.verify_poll_seconds) == (
+        10,
+        120.0,
+        5.0,
+    )
+    assert CameraSettings(backup_count=0).validate() == [
+        "camera.backup_count must be between 1 and 100"
+    ]
+    assert CameraSettings(verify_timeout_seconds=601).validate() == [
+        "camera.verify_timeout_seconds must be between 10 and 600"
+    ]
+    assert CameraSettings(verify_poll_seconds=0.5).validate() == [
+        "camera.verify_poll_seconds must be between 1 and 30"
+    ]
