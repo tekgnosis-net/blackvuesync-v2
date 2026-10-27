@@ -113,7 +113,7 @@ def test_stage_review_apply(live_server: Any, fake_camera: Any, page: Page) -> N
     _stage(page, "system", "Tab3.VOLUME", "4")
     _stage(page, "cloud", "Cloud.sta2_ssid", "Shed")
     bar = page.locator("#camera-apply-bar")
-    expect(bar.locator("[data-camera-count]")).to_contain_text("2")
+    expect(bar.locator("[data-camera-count]")).to_have_text("2 changes")
     bar.get_by_role("button", name="Review & apply").click()
     dialog = page.locator("#camera-review")
     expect(dialog.locator("[data-review-rows] tr")).to_have_count(2)
@@ -122,10 +122,18 @@ def test_stage_review_apply(live_server: Any, fake_camera: Any, page: Page) -> N
         "Applied and verified"
     )
     dialog.locator("[data-review-cancel]").click()
+    # a reload proves the server-rendered originals changed, not just the inputs
+    page.reload()
+    expect(page.locator("#camera-panes .camera-field").first).to_be_attached()
     page.locator('[data-section-nav="camera-system"]').click()
-    expect(
-        page.locator('[data-pane="camera-system"] [data-camera-key="Tab3.VOLUME"]')
-    ).to_have_value("4")
+    volume = page.locator('[data-pane="camera-system"] [data-camera-key="Tab3.VOLUME"]')
+    expect(volume).to_have_attribute("data-original", "4")
+    expect(volume).to_have_value("4")
+    page.locator('[data-section-nav="camera-cloud"]').click()
+    ssid = page.locator(
+        '[data-pane="camera-cloud"] [data-camera-key="Cloud.sta2_ssid"]'
+    )
+    expect(ssid).to_have_attribute("data-original", "Shed")
     assert b"VOLUME=4" in fake_camera.config
     assert b"sta2_ssid=Shed" in fake_camera.config
 
