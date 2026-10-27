@@ -14,7 +14,7 @@
 
 **Deviations from the spec, decided while planning:**
 
-- **No `accept_loss` override.** Kumar's rule: a setting that formats the card is never applied while recordings are pending. The server answers 409 `FORMAT_BLOCKED` with the pending count; the review dialog explains and offers **Sync now** only. `confirm_format` is still required when pending is 0.
+- **Format gate as in spec section 7.2 (a warning, not a block).** A format key needs `confirm_format: true`; when the pending count is above 0 it also needs `accept_loss: true`, which the review dialog only enables behind a checkbox "I accept losing N recordings". Without them the server answers 409 `FORMAT_CONFIRMATION_REQUIRED` with `pending`. Kumar (2026-10-27): a considered option with a warning, not a hard rule.
 - **`ImageSetting` stays format-guarded** (calibration pending).
 - **Passwords:** a blank password field in the form means "unchanged"; to clear a home network the user clears its SSID (the server then also clears that network's password). `ap_pw` cannot be emptied.
 - **Restore** goes through the same apply pipeline, computing changes as the diff between the backup and a fresh read, so the format gate applies to restores too.
@@ -28,7 +28,7 @@
 - Camera passwords: never logged, never in HTML or JSON except `/api/camera/secret`; apply logs name changed keys and show `(changed)` for passwords; never log `Change`, `CameraFile` or raw values.
 - Every threshold is a settings knob with default and clamp: `camera.backup_count` (10, 1-100), `camera.verify_timeout_seconds` (120, 10-600), `camera.verify_poll_seconds` (5, 1-30); documented in `docs/guide/configuration.md`.
 - Files under `<settings dir>/camera/` and `camera/backups/`: directories 0700, files 0600. Backup names `config-YYYYMMDD-HHMMSS.ini` in local time.
-- **Format gate (hard):** keys `Tab1.TimeSet`, `Tab1.SetTime`, `Tab1.TimeZone`, `Tab1.Daylight`, `Tab1.GpsSync`, `Tab1.ImageSetting`, `Tab1.VideoQuality` may only be uploaded when the server-side pending count is exactly 0 and the request carries `confirm_format: true`. Pending = `.mp4` files the camera lists that have no file at their destination path (grouping honoured).
+- **Format gate:** keys `Tab1.TimeSet`, `Tab1.SetTime`, `Tab1.TimeZone`, `Tab1.Daylight`, `Tab1.GpsSync`, `Tab1.ImageSetting`, `Tab1.VideoQuality` require `confirm_format: true`, and additionally `accept_loss: true` when the server-side pending count is above 0; the refusal carries the count. Pending = `.mp4` files the camera lists that have no file at their destination path (grouping honoured).
 - Line endings, byte order and unknown keys of `config.ini` are preserved exactly; only the value part of changed lines is rewritten.
 - Commit message lines under 80 characters; no Claude attribution or session trailer; never `--no-verify`.
 
@@ -38,7 +38,56 @@
 2. **The camera reboots after the upload and comes back with a different value than sent** (firmware clamps it). Expected: 200 with `kept` naming the key and the snapshot taking the camera's value. Task 5.
 3. **A scheduled sync fires during an apply.** Expected: the sync is skipped with one log line; the apply continues. Task 5.
 4. **The camera goes offline between the fresh read and the upload.** Expected: 502 `UPLOAD_FAILED`, backup kept, no partial state. Task 5.
-5. **Restoring a backup whose time-zone differs from the camera's current one while recordings are pending.** Expected: 409 `FORMAT_BLOCKED`; no upload. Task 6.
+5. **Restoring a backup whose time-zone differs from the camera's current one while recordings are pending.** Expected: 409 `FORMAT_CONFIRMATION_REQUIRED` with `pending`, no upload, until both confirmations are given. Task 6.
+
+---
+
+### Task 0: Calibrated value codes in the schema
+
+**Files:**
+
+- Modify: `blackvuesync_v2/server/camera_schema.py`
+- Create: `docs/reference/blackvue-camera-config.md`
+- Test: `test/test_camera_schema.py` (append)
+
+Findings from Kumar's DR900X Plus (fw 1.015) on 2026-10-27, each confirmed by changing one setting in the BlackVue app and diffing `config.ini`:
+
+| Key | Codes |
+| --- | --- |
+| `Tab1.AutoParking` | 1 = Motion & Impact detection, 2 = Time lapse |
+| `Tab1.SpeedUnit` | 0 = km/h, 1 = MPH (2 = Off, DR900S table) |
+| `Tab2.NORMALSENSOR1-3`, `Tab2.PARKINGSENSOR1-3` | 0-10 |
+| `Tab2.MOTIONSENSOR` | 0-10 |
+| `Tab3.VOLUME` | 0-10 (5 -> 4 confirmed) |
+| `Tab3.AlertLimit` | number in the display unit |
+| `Tab3.PSENSOR` | 0 = Off, 1 = Manual recording, 2 = Voice recording (differs from the DR900S table) |
+| `Tab3.LowvoltageVolt`, `LowvoltageVoltHeavy` | volts x 100 (1180 = 11.8 V) |
+| `Wifi.WiFiBand` | 0 = 5 GHz, 1 = 2.4 GHz |
+
+- [ ] **Step 1: Tests** (append to `test/test_camera_schema.py`):
+
+```python
+def test_calibrated_codes_from_the_dr900x_plus() -> None:
+    assert display_value(field_for("Tab1", "AutoParking"), "1") == "Motion & Impact detection"
+    assert display_value(field_for("Tab1", "AutoParking"), "2") == "Time lapse"
+    assert display_value(field_for("Tab3", "PSENSOR"), "2") == "Voice recording"
+    assert display_value(field_for("Tab3", "PSENSOR"), "1") == "Manual recording"
+    assert display_value(field_for("Tab3", "PSENSOR"), "0") == "Off"
+    for key in ("NORMALSENSOR1", "PARKINGSENSOR3", "MOTIONSENSOR"):
+        field = field_for("Tab2", key)
+        assert (field.minimum, field.maximum) == (0, 10)
+    assert (field_for("Tab3", "VOLUME").minimum, field_for("Tab3", "VOLUME").maximum) == (0, 10)
+    assert field_for("Tab1", "AutoParking").help == ""
+```
+
+- [ ] **Step 2: Run to verify it fails** (`AutoParking` is still a number field; `minimum` does not exist).
+
+- [ ] **Step 3: Implement.** Add `minimum: int | None = None` and `maximum: int | None = None` to `CameraField`. Change the descriptors: `AutoParking` becomes `_s("Tab1", "AutoParking", "Parking mode", (("1", "Motion & Impact detection"), ("2", "Time lapse")))`; `PSENSOR` options become `(("0", "Off"), ("1", "Manual recording"), ("2", "Voice recording"))`; the six sensor keys, `MOTIONSENSOR` and `VOLUME` get `minimum=0, maximum=10`; `AlertLimit` help becomes "in the speed unit from the Basic tab". Write `docs/reference/blackvue-camera-config.md` with the table above plus the `upload.cgi` form facts and the port 9771 observation, and link it from `docs/reference/blackvue-file-formats.md`'s neighbour entry in `mkdocs.yml` nav (Reference section).
+
+- [ ] **Step 4: Run** `venv/bin/python -m pytest test/test_camera_schema.py test/test_routes_hx_camera.py -q` and `venv/bin/mkdocs build --strict -q`.
+- [ ] **Step 5: Commit** `git commit -m "feat(camera): calibrated value codes from the DR900X Plus"`
+
+Task 3's `validate_change` must honour `minimum`/`maximum` for number fields: an out-of-range value yields `"<name>: must be between <min> and <max>"`; add that case to Task 3's tests (`validate_change("Tab3", "VOLUME", "11")`).
 
 ---
 
@@ -655,7 +704,7 @@ Docs: add the three rows to the `### Camera access` table in `configuration.md` 
 - `camera_apply.pending_recordings(settings) -> int | None`: `.mp4` names from `get_dashcam_filenames(f"http://{address}")` filtered with `apply_recording_filters`, mapped through `to_recording`/`get_group_name`/`get_filepath`; counts missing files; None when the camera is unreachable.
 - `camera_apply.ApplyResult(verified: bool, came_back: bool, kept: list[str], backup: str, changed: list[str])`
 - `camera_apply.ApplyRefused(Exception)` with `.code: str`, `.status: int`, `.detail: dict`.
-- `camera_apply.apply_changes(store: SettingsStore, raw_changes: dict[str, str], confirm_format: bool) -> ApplyResult`.
+- `camera_apply.apply_changes(store: SettingsStore, raw_changes: dict[str, str], confirm_format: bool, accept_loss: bool = False) -> ApplyResult`.
 - Routes: `GET /api/camera/pending` → `{"pending": n}` or 409 `CAMERA_OFFLINE`; `POST /api/camera/config` → 200 `ApplyResult` as JSON, or the 409/422/500/502 codes below.
 
 - [ ] **Step 1: Tests.** Create `test/test_camera_apply.py`:
@@ -814,17 +863,19 @@ def test_apply_refusals(store: SettingsStore, camera: FakeCamera) -> None:
     assert camera_config.BackupStore(store.path.parent / "camera" / "backups").list()
 
 
-def test_format_keys_need_confirmation_and_zero_pending(store: SettingsStore, camera: FakeCamera) -> None:
+def test_format_keys_need_confirmation_and_accepted_loss(store: SettingsStore, camera: FakeCamera) -> None:
     camera.vod = ["20261027_210000_NF.mp4"]
     with pytest.raises(camera_apply.ApplyRefused) as e:
-        camera_apply.apply_changes(store, {"Tab1.TimeZone": "1100"}, True)
-    assert (e.value.status, e.value.code, e.value.detail) == (409, "FORMAT_BLOCKED", {"pending": 1})
+        camera_apply.apply_changes(store, {"Tab1.TimeZone": "1100"}, True, False)
+    assert (e.value.status, e.value.code, e.value.detail) == (409, "FORMAT_CONFIRMATION_REQUIRED", {"pending": 1})
     assert camera.uploads == []
+    result = camera_apply.apply_changes(store, {"Tab1.TimeZone": "1100"}, True, True)
+    assert result.verified and len(camera.uploads) == 1
     camera.vod = []
     with pytest.raises(camera_apply.ApplyRefused) as e:
-        camera_apply.apply_changes(store, {"Tab1.TimeZone": "1100"}, False)
-    assert e.value.code == "FORMAT_CONFIRMATION_REQUIRED"
-    result = camera_apply.apply_changes(store, {"Tab1.TimeZone": "1100"}, True)
+        camera_apply.apply_changes(store, {"Tab1.TimeZone": "1000"}, False, False)
+    assert e.value.detail == {"pending": 0}
+    result = camera_apply.apply_changes(store, {"Tab1.TimeZone": "1000"}, True, False)
     assert result.verified
 
 
@@ -867,7 +918,7 @@ def test_passwords_never_reach_the_log(
     assert "Cloud.sta_pw (changed)" in caplog.text and "Tab3.VOLUME" in caplog.text
 ```
 
-Append to `test/test_routes_api_camera.py` route tests: `GET /api/camera/pending` → `{"pending": 0}` with an empty vod (monkeypatch `camera_apply.get_dashcam_filenames`), 409 `CAMERA_OFFLINE` when it raises; `POST /api/camera/config` with JSON `{"changes": {"Tab3.VOLUME": "4"}}` → 200 and `verified` true (FakeCamera from `test_camera_apply` imported, plus `_post` monkeypatched); a missing/invalid body → 422 `INVALID_CHANGES`; `FORMAT_BLOCKED` → 409 with `pending`; an unauthenticated POST → 401; a POST without the CSRF token in a non-testing app → 400 (follow `test_server_hardening.py`'s CSRF pattern).
+Append to `test/test_routes_api_camera.py` route tests: `GET /api/camera/pending` → `{"pending": 0}` with an empty vod (monkeypatch `camera_apply.get_dashcam_filenames`), 409 `CAMERA_OFFLINE` when it raises; `POST /api/camera/config` with JSON `{"changes": {"Tab3.VOLUME": "4"}}` → 200 and `verified` true (FakeCamera from `test_camera_apply` imported, plus `_post` monkeypatched); a missing/invalid body → 422 `INVALID_CHANGES`; a format key without confirmations → 409 `FORMAT_CONFIRMATION_REQUIRED` with `pending`; an unauthenticated POST → 401; a POST without the CSRF token in a non-testing app → 400 (follow `test_server_hardening.py`'s CSRF pattern).
 
 - [ ] **Step 2: Run to verify they fail** -- `ImportError: ... camera_apply`.
 
@@ -957,7 +1008,10 @@ def _describe(changes: dict[tuple[str, str], str]) -> list[str]:
 
 
 def apply_changes(
-    store: SettingsStore, raw_changes: dict[str, str], confirm_format: bool
+    store: SettingsStore,
+    raw_changes: dict[str, str],
+    confirm_format: bool,
+    accept_loss: bool = False,
 ) -> ApplyResult:
     """runs the apply pipeline from the design spec, section 5."""
     settings = store.get()
@@ -978,14 +1032,13 @@ def apply_changes(
             pending = pending_recordings(settings)
             if pending is None:
                 raise ApplyRefused(409, "CAMERA_OFFLINE", "could not list the camera's recordings")
-            if pending > 0:
+            if not confirm_format or (pending > 0 and not accept_loss):
                 raise ApplyRefused(
-                    409, "FORMAT_BLOCKED",
-                    "this change makes the camera format its card; recordings are not downloaded yet",
+                    409, "FORMAT_CONFIRMATION_REQUIRED",
+                    "this change makes the camera format its card; confirm it"
+                    + (f" and accept losing {pending} recordings" if pending else ""),
                     pending=pending,
                 )
-            if not confirm_format:
-                raise ApplyRefused(409, "FORMAT_CONFIRMATION_REQUIRED", "confirm the card format first")
         backups = BackupStore(store.path.parent / "camera" / "backups")
         backup = backups.save(fresh.config.raw)
         backups.prune(cam.backup_count)
@@ -1031,7 +1084,9 @@ def apply() -> Response:
     if not isinstance(raw, dict) or not all(isinstance(v, str) for v in raw.values()):
         return _json({"code": "INVALID_CHANGES", "error": "changes must map Section.key to text"}, 422)
     try:
-        result = apply_changes(store, raw, bool(body.get("confirm_format")))
+        result = apply_changes(
+            store, raw, bool(body.get("confirm_format")), bool(body.get("accept_loss"))
+        )
     except ApplyRefused as refused:
         return _json({"code": refused.code, "error": str(refused), **refused.detail}, refused.status)
     return _json(dataclasses.asdict(result))
@@ -1046,13 +1101,15 @@ def apply() -> Response:
 
 **Files:** `blackvuesync_v2/server/routes/api_camera.py`, `blackvuesync_v2/server/camera_apply.py`; tests in `test/test_routes_api_camera.py`.
 
-**Interfaces:** `camera_apply.restore_backup(store, name, confirm_format) -> ApplyResult` (changes = diff of fresh read vs backup, then `apply_changes` semantics via a shared `_apply(store, changes, confirm_format)` extracted from `apply_changes`); routes `GET /api/camera/backups` → `[{"name","created","size"}]`; `POST /api/camera/backups/<name>/restore` body `{"confirm_format": bool}` → `ApplyResult` or 404 `NO_SUCH_BACKUP` / the apply codes.
+**Interfaces:** `camera_apply.restore_backup(store, name, confirm_format, accept_loss) -> ApplyResult` (changes = diff of fresh read vs backup, then `apply_changes` semantics via a shared `_apply(store, changes, confirm_format)` extracted from `apply_changes`); routes `GET /api/camera/backups` → `[{"name","created","size"}]`; `POST /api/camera/backups/<name>/restore` body `{"confirm_format": bool}` → `ApplyResult` or 404 `NO_SUCH_BACKUP` / the apply codes.
 
-- [ ] **Step 1: Tests:** list returns newest first with ISO `created`; restore of a backup differing only in `VOLUME` uploads once and verifies; restore whose backup has a different `TimeZone` while `vod` is non-empty → 409 `FORMAT_BLOCKED` and no upload (review focus 5); unknown or malformed name → 404; restore identical to the current file → 422 `NO_CHANGES`.
+- [ ] **Step 1: Tests:** list returns newest first with ISO `created`; restore of a backup differing only in `VOLUME` uploads once and verifies; restore whose backup has a different `TimeZone` while `vod` is non-empty → 409 `FORMAT_CONFIRMATION_REQUIRED` with `pending` and no upload until `confirm_format` and `accept_loss` are both true (review focus 5); unknown or malformed name → 404; restore identical to the current file → 422 `NO_CHANGES`.
 - [ ] **Step 2: fail. Step 3: implement** by refactoring `apply_changes` into `_apply(store, changes: dict[tuple[str,str],str], confirm_format)` (everything after `prepare_changes`) and adding:
 
 ```python
-def restore_backup(store: SettingsStore, name: str, confirm_format: bool) -> ApplyResult:
+def restore_backup(
+    store: SettingsStore, name: str, confirm_format: bool, accept_loss: bool = False
+) -> ApplyResult:
     """uploads a backup by applying its differences to the camera's current file."""
     raw = BackupStore(store.path.parent / "camera" / "backups").read(name)
     if raw is None:
@@ -1068,7 +1125,7 @@ def restore_backup(store: SettingsStore, name: str, confirm_format: bool) -> App
     }
     if not changes:
         raise ApplyRefused(422, "NO_CHANGES", "the camera already has these settings")
-    return _apply(store, changes, confirm_format)
+    return _apply(store, changes, confirm_format, accept_loss)
 ```
 
 - [ ] **Step 4: Run. Step 5: Commit** `git commit -m "feat(camera): list and restore config.ini backups"`
@@ -1086,7 +1143,7 @@ def restore_backup(store: SettingsStore, name: str, confirm_format: bool) -> App
 - When `online` is false, inputs are rendered `disabled` and the banner stays.
 - A sixth pane `data-pane="camera-backups"` lists `GET /api/camera/backups` with a **Restore** button per row (confirm via the same review dialog, which calls the restore endpoint).
 - A sticky bar `#camera-apply-bar` (hidden until there are changes): "N changes", **Discard**, **Review & apply**.
-- `settings.js` additions (CSP-clean, delegated `input`/`change` listeners on `#camera-panes`): `cameraChanges()` collects `{key: value}` where value differs from `data-original` (password inputs: non-empty only); `discardCameraChanges()` resets inputs; `openCameraReview()` fills `<dialog id="camera-review">` with a Setting/From/To table (passwords show "changed"), a warning when any key is in the format set (badge text "erases camera recordings"), a Wi-Fi warning when any key starts with `Wifi.` or `Cloud.`, then calls `GET /api/camera/pending` and, if pending > 0 and a format key is staged, disables **Apply** and shows "N recordings are not downloaded yet. Run Sync now first." with a link to the dashboard; otherwise a checkbox "I understand the camera will erase its recordings" gates **Apply** for format keys; `applyCamera()` POSTs with the CSRF token, shows the progress steps text, then the result (`verified`, `kept`, `came_back`), and triggers an htmx refresh of `#camera-panes`; `beforeunload` warns while changes exist; an `htmx:afterSwap` of the panes clears staged state.
+- `settings.js` additions (CSP-clean, delegated `input`/`change` listeners on `#camera-panes`): `cameraChanges()` collects `{key: value}` where value differs from `data-original` (password inputs: non-empty only); `discardCameraChanges()` resets inputs; `openCameraReview()` fills `<dialog id="camera-review">` with a Setting/From/To table (passwords show "changed"), a warning when any key is in the format set (badge text "erases camera recordings"), a Wi-Fi warning when any key starts with `Wifi.` or `Cloud.`, then calls `GET /api/camera/pending` when a format key is staged: a red warning "The camera will format its microSD card and delete all recordings on it, including locked events." plus, if pending > 0, "N recordings have not been downloaded yet." with a **Sync now first** link to the dashboard and a second checkbox "I accept losing N recordings"; **Apply** stays disabled until the "I understand the camera will erase its recordings" checkbox (and the loss checkbox when pending > 0) are ticked; the POST sends `confirm_format` and `accept_loss` from those checkboxes; `applyCamera()` POSTs with the CSRF token, shows the progress steps text, then the result (`verified`, `kept`, `came_back`), and triggers an htmx refresh of `#camera-panes`; `beforeunload` warns while changes exist; an `htmx:afterSwap` of the panes clears staged state.
 - Keep the Alpine component free of per-element expressions (methods only).
 
 - [ ] **Step 1: Route and schema tests:** `/hx/camera/panes` contains `<select data-camera-key="Tab1.VideoQuality"` with `data-original="0"`, a checkbox for `Tab3.RECLED`, a number input for `Tab3.VOLUME` with `value="5"`, a password input for `Cloud.sta_pw` with empty value and `placeholder="unchanged"`, no `data-camera-key` for `Tab1.RecordTime`, and `id="camera-apply-bar"`; offline → every `data-camera-key` element has `disabled`; `/settings` has `data-section-nav="camera-backups"` and `id="camera-review"`; the fixture's ciphertexts and plaintexts are absent.
@@ -1101,8 +1158,8 @@ def restore_backup(store: SettingsStore, name: str, confirm_format: bool) -> App
 - [ ] **Step 1:** Extend `FakeCameraServer`: `self.config` bytes, `self.vod: list[str]`, `do_POST` parses the multipart body with `email.message_from_bytes(b"Content-Type: " + self.headers["Content-Type"].encode() + b"\r\n\r\n" + body)` and stores the `FileData` part's payload as `self.config`; `do_GET` of `/blackvue_vod.cgi` returns `"\n".join(f"n:/Record/{n},s:1" for n in self.vod)`.
 - [ ] **Step 2: Tests:**
   - `test_stage_review_apply`: change `Tab3.VOLUME` on System and `Cloud.sta2_ssid` on Cloud; the apply bar shows "2 changes"; **Review & apply** lists both rows; **Apply** → result text contains "Applied and verified"; after the refresh the System pane shows the new value; `fake_camera.config` contains `VOLUME=4`.
-  - `test_format_key_is_blocked_while_recordings_are_pending`: `fake_camera.vod = ["20261027_210000_NF.mp4"]`; change `Tab1.TimeZone`; the review dialog shows "1 recording" and the Apply button is disabled; no upload happened.
-  - `test_format_key_needs_the_checkbox_when_nothing_is_pending`: Apply disabled until the checkbox is ticked, then enabled.
+  - `test_format_key_warns_about_pending_recordings`: `fake_camera.vod = ["20261027_210000_NF.mp4"]`; change `Tab1.TimeZone`; the dialog shows "1 recording", Apply is disabled, ticking only the first checkbox keeps it disabled, ticking both enables it; closing without applying leaves `fake_camera.config` unchanged.
+  - `test_format_key_needs_the_checkbox_when_nothing_is_pending`: no loss checkbox is shown; Apply is disabled until the first checkbox is ticked, then enabled.
   - `test_discard_resets_fields_and_hides_the_bar`.
   - `test_backups_pane_lists_and_restores`: after one apply, the Backups pane shows one row; **Restore** → dialog → Apply → `fake_camera.config` equals the original fixture.
 - [ ] **Step 3:** Run `venv/bin/python -m pytest test/e2e/test_camera_settings.py test/e2e/test_contrast.py -m e2e -q`, then the WebKit Docker run from the phase-A plan (Task 9, Step 5) for the same files. Fix any contrast finding with tokens only.
@@ -1134,7 +1191,7 @@ Steps call `camera_config.fetch`, `camera_schema.prepare_changes`, `camera_confi
 
 ### Task 10: Documentation
 
-**Files:** `docs/guide/camera-settings.md` (editing, review dialog, the SD-card rule, backups and restore, recovery with the phone app), `docs/guide/troubleshooting.md` (camera did not come back; camera kept a value; FORMAT_BLOCKED), `docs/api.md` (`GET /api/camera/pending`, `POST /api/camera/config`, backups endpoints, every error code), `docs/guide/configuration.md` (already has the knobs from Task 4; link to the guide), `CHANGELOG.md` (Unreleased → Added), `CLAUDE.md` (`camera_apply.py`, `try_hold_sync_lock`, the format gate), `scripts/screenshots.py` (demo dashcam accepts `POST /upload.cgi`; capture the review dialog as `camera-review.png`).
+**Files:** `docs/guide/camera-settings.md` (editing, review dialog, the SD-card rule, backups and restore, recovery with the phone app), `docs/guide/troubleshooting.md` (camera did not come back; camera kept a value; the format warning), `docs/api.md` (`GET /api/camera/pending`, `POST /api/camera/config`, backups endpoints, every error code), `docs/guide/configuration.md` (already has the knobs from Task 4; link to the guide), `CHANGELOG.md` (Unreleased → Added), `CLAUDE.md` (`camera_apply.py`, `try_hold_sync_lock`, the format gate), `scripts/screenshots.py` (demo dashcam accepts `POST /upload.cgi`; capture the review dialog as `camera-review.png`).
 
 - [ ] Write the docs; `venv/bin/mkdocs build --strict -q`; regenerate screenshots; commit `git commit -m "docs(camera): editing guide, api reference and screenshots"`.
 
@@ -1142,7 +1199,7 @@ Steps call `camera_config.fetch`, `camera_schema.prepare_changes`, `camera_confi
 
 ### Task 11: Release gate on the real camera, then 3.3.0
 
-Run by Kumar or with his explicit OK for each step, car parked at home, from the NAS. **Precondition for every step: `GET /api/camera/pending` on the deployed app returns 0.**
+Run by Kumar or with his explicit OK for each step, car parked at home, from the NAS. **Precondition for every step: `GET /api/camera/pending` on the deployed app returns 0, so a surprise format cannot lose recordings.**
 
 1. Deploy the PR build (image tag from the PR's `main` merge, or `:latest` after merge) on the NAS.
 2. **No-op upload:** `POST /api/camera/config` with a change that sets `Tab3.VOLUME` to its current value is refused (`NO_CHANGES`), so use the Behave-style path: from the NAS run the upload of the camera's own unchanged file with `camera_config.upload` and confirm `GET /Config/config.ini` is byte-identical afterwards, noting whether the camera rebooted (port 80 gap) and whether any recording disappeared (vod count before/after).
