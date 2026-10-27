@@ -1,6 +1,29 @@
-{# camera settings panes, one per tab; read-only until editing ships. the
-   refresh button re-reads the camera and swaps this whole fragment. #}
-{% macro rows(fields) %}
+{# camera settings panes, one per tab. known writable keys render a control
+   carrying data-camera-key / data-original / data-camera-label; keys that
+   erase the camera's recordings also carry data-formats-card="1". passwords
+   never reach the html: their inputs start empty. the refresh button
+   re-reads the camera and swaps this whole fragment. #}
+{% macro control(f, online) %}
+  {%- set common -%}
+    data-camera-key="{{ f.key }}" data-camera-label="{{ f.label }}" aria-label="{{ f.label }}"{% if f.formats_card %} data-formats-card="1"{% endif %}{% if not online %} disabled{% endif %}
+  {%- endset -%}
+  {% if f.widget == "select" %}
+    <select {{ common|safe }} data-original="{{ f.raw }}" class="form-input camera-input">
+      {% set values = f.options|map(attribute=0)|list %}
+      {% for value, text in f.options %}<option value="{{ value }}"{% if value == f.raw %} selected{% endif %}>{{ text }}</option>{% endfor %}
+      {% if f.raw not in values %}<option value="{{ f.raw }}" selected>{{ f.raw }}</option>{% endif %}
+    </select>
+  {% elif f.widget == "toggle" %}
+    <input type="checkbox" {{ common|safe }} data-original="{{ f.raw }}"{% if f.raw == "1" %} checked{% endif %}>
+  {% elif f.widget == "password" %}
+    <input type="password" {{ common|safe }} data-original="" data-secret="1" placeholder="unchanged" autocomplete="new-password" class="form-input camera-input">
+  {% elif f.widget == "number" or f.widget == "hour" %}
+    <input type="number" {{ common|safe }} data-original="{{ f.raw }}" value="{{ f.raw }}"{% if f.widget == "hour" %} min="0" max="23"{% elif f.minimum is not none %} min="{{ f.minimum }}"{% endif %}{% if f.widget != "hour" and f.maximum is not none %} max="{{ f.maximum }}"{% endif %} class="form-input camera-input">
+  {% else %}
+    <input type="text" {{ common|safe }} data-original="{{ f.raw }}" value="{{ f.raw }}"{% if f.maxlength %} maxlength="{{ f.maxlength }}"{% endif %} class="form-input camera-input">
+  {% endif %}
+{% endmacro %}
+{% macro rows(fields, online) %}
   <dl class="camera-fields">
     {% for f in fields %}
       <div class="camera-field">
@@ -9,6 +32,7 @@
           {% if f.formats_card %}<span class="badge badge-format">erases camera recordings</span>{% endif %}
         </dt>
         <dd>
+          {% if f.editable %}{{ control(f, online) }}{% endif %}
           {% if f.secret %}
             <span class="camera-secret" data-secret-value="{{ f.key }}">{{ f.value }}</span>
             {% if f.has_value %}
@@ -46,16 +70,22 @@
           {% for c in changed %}{{ c.label }} ({{ c.key }}) {{ c["from"] }} → {{ c["to"] }}{{ "; " if not loop.last }}{% endfor %}
         </div>
       {% endif %}
-      {{ rows(tab.fields) }}
+      {{ rows(tab.fields, online) }}
       {% if tab.other %}
-        <details class="camera-group" open><summary>Other</summary>{{ rows(tab.other) }}</details>
+        <details class="camera-group" open><summary>Other</summary>{{ rows(tab.other, online) }}</details>
       {% endif %}
       {% if tab.not_fitted %}
-        <details class="camera-group"><summary>Other (not fitted on this camera)</summary>{{ rows(tab.not_fitted) }}</details>
+        <details class="camera-group"><summary>Other (not fitted on this camera)</summary>{{ rows(tab.not_fitted, online) }}</details>
       {% endif %}
-      <p class="field-help">Editing camera settings arrives in a later release.</p>
     </section>
   {% endfor %}
+  {% if online %}
+    <div id="camera-apply-bar" class="camera-apply-bar" role="region" aria-label="Pending camera changes" hidden>
+      <span class="camera-apply-count" data-camera-count>0 changes</span>
+      <button type="button" class="button button-secondary button-sm" @click="discardCameraChanges">Discard</button>
+      <button type="button" class="button button-primary button-sm" @click="openCameraReview">Review &amp; apply</button>
+    </div>
+  {% endif %}
 {% else %}
   {% for tab in placeholder_tabs %}
     <section class="settings-pane camera-pane" data-pane="camera-{{ tab.name }}">

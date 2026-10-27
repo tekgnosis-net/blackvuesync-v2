@@ -375,6 +375,12 @@ class FieldView:
     has_value: bool
     formats_card: bool
     help: str
+    widget: str = "readonly"
+    options: tuple[tuple[str, str], ...] = ()
+    minimum: int | None = None
+    maximum: int | None = None
+    maxlength: int | None = None
+    editable: bool = False  # known, writable key: the panes render a control
 
 
 @dataclasses.dataclass(frozen=True)
@@ -406,6 +412,12 @@ def _view(section: str, key: str, raw: str, known: bool) -> FieldView:
         has_value=bool(raw),
         formats_card=field.formats_card,
         help=field.help,
+        widget=field.widget,
+        options=tuple((safe_text(v), safe_text(t)) for v, t in field.options),
+        minimum=field.minimum,
+        maximum=field.maximum,
+        maxlength=_TEXT_LIMITS.get((section, key)),
+        editable=known and not field.read_only and field.widget != "readonly",
     )
 
 

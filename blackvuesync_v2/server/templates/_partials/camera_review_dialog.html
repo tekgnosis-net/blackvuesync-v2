@@ -1,0 +1,35 @@
+{# review dialog for staged camera changes and backup restores; filled by
+   settings.js with textContent only. #}
+<dialog id="camera-review" class="modal camera-review" aria-labelledby="camera-review-title">
+  <h3 class="modal-title" id="camera-review-title" data-review-title>Review changes</h3>
+  <div class="camera-review-body">
+    <table class="camera-review-table" data-review-table hidden>
+      <thead><tr><th scope="col">Setting</th><th scope="col">From</th><th scope="col">To</th></tr></thead>
+      <tbody data-review-rows></tbody>
+    </table>
+    <div class="alert alert-warning" data-review-wifi hidden>
+      Changing Wi-Fi or cloud settings can make the camera unreachable from here.
+      If it does, restore the backup from the Backups tab, or reset the camera
+      from its own menu.
+    </div>
+    <div class="camera-review-format" data-review-format hidden>
+      <p class="alert alert-error" data-review-format-text>The camera will format its microSD card and delete all recordings on it, including locked events.</p>
+      <p class="alert alert-error" data-review-pending hidden></p>
+      <a class="camera-link" href="/" data-review-sync hidden>Sync now first</a>
+      <label class="camera-review-check">
+        <input type="checkbox" data-confirm-format>
+        I understand the camera will erase its recordings
+      </label>
+      <label class="camera-review-check" data-review-loss hidden>
+        <input type="checkbox" data-accept-loss>
+        <span data-review-loss-text>I accept losing the recordings</span>
+      </label>
+    </div>
+    <p class="camera-status" data-review-progress hidden></p>
+    <p class="camera-review-result" data-review-result role="status" hidden></p>
+  </div>
+  <div class="modal-actions">
+    <button type="button" class="button button-secondary" data-review-cancel @click="closeCameraReview">Close</button>
+    <button type="button" class="button button-primary" data-review-apply @click="applyCamera">Apply</button>
+  </div>
+</dialog>

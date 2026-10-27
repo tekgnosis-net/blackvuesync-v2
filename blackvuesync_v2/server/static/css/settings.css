@@ -70,3 +70,32 @@
 .camera-group { margin-top: var(--space-3); }
 .camera-group > summary { cursor: pointer; color: var(--color-label-secondary); }
 @media (max-width: 720px) { .camera-field { grid-template-columns: 1fr; gap: var(--space-1); } }
+
+/* editable camera panes: inputs, sticky apply bar, review dialog, backups */
+.camera-input { max-width: 100%; }
+.camera-field input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--color-accent-fill); }
+.camera-field .is-changed { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.camera-apply-bar { position: sticky; bottom: var(--space-4); display: flex; align-items: center;
+  gap: var(--space-3); margin-top: var(--space-4); padding: var(--space-3) var(--space-4);
+  background: var(--color-surface); color: var(--color-label); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-prominent); }
+.camera-apply-bar[hidden] { display: none; }
+.camera-apply-count { flex: 1; font-size: var(--text-footnote); font-weight: 600; }
+dialog.camera-review { max-width: 560px; color: var(--color-label); }
+.camera-review-body { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); }
+.camera-review-body [hidden] { display: none; }
+.camera-review-table { width: 100%; border-collapse: collapse; font-size: var(--text-footnote); }
+.camera-review-table th { text-align: left; color: var(--color-label-secondary); font-weight: 600; }
+.camera-review-table th, .camera-review-table td { padding: var(--space-1) var(--space-2);
+  overflow-wrap: anywhere; }
+.camera-review-check { display: flex; align-items: center; gap: var(--space-2);
+  font-size: var(--text-footnote); color: var(--color-label); }
+.camera-review-format .alert { margin-bottom: var(--space-2); }
+.camera-review-result { font-size: var(--text-footnote); color: var(--color-success-text); }
+.camera-review-result.is-error { color: var(--color-error-text); }
+.camera-backups { list-style: none; display: grid; gap: var(--space-2); padding: 0; }
+.camera-backup { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center;
+  gap: var(--space-3); color: var(--color-label); }
+.camera-backup-name { overflow-wrap: anywhere; }
+.camera-backup-meta { font-size: var(--text-caption1); color: var(--color-label-secondary); }
+@media (max-width: 720px) { .camera-backup { grid-template-columns: 1fr; } }

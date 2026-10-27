@@ -66,6 +66,7 @@ function collectFields(root) {
 document.addEventListener("alpine:init", () => {
   Alpine.data("settingsPage", () => ({
     current: "",
+    review: { kind: "changes", changes: {}, name: "", busy: false, done: false },
 
     init() {
       // without js, all panes show (one scroll); js-nav switches to single-pane.
@@ -82,7 +83,28 @@ document.addEventListener("alpine:init", () => {
         if (button) this.toggleSecret(button);
       });
       document.body.addEventListener("htmx:afterSwap", (ev) => {
-        if (ev.target.id === "camera-panes") this.activate(this.current);
+        if (ev.target.id !== "camera-panes") return;
+        // a fresh read replaces the staged edits, and the bar with them
+        this.activate(this.current);
+        this.updateCameraBar();
+      });
+      const staged = (ev) => {
+        if (ev.target.closest("#camera-panes [data-camera-key]")) {
+          this.updateCameraBar();
+        }
+      };
+      this.$root.addEventListener("input", staged);
+      this.$root.addEventListener("change", staged);
+      this.$root.addEventListener("click", (ev) => {
+        const restore = ev.target.closest("[data-restore]");
+        if (restore) this.openRestoreReview(restore.dataset.restore);
+      });
+      this.reviewDialog().addEventListener("change", () => this.syncApply());
+      globalThis.addEventListener("beforeunload", (ev) => {
+        if (this.cameraChanges().count > 0) {
+          ev.preventDefault();
+          ev.returnValue = "";
+        }
       });
     },
 
@@ -96,10 +118,360 @@ document.addEventListener("alpine:init", () => {
       this.$root.querySelectorAll("[data-section-nav]").forEach((n) => {
         n.classList.toggle("active", n.dataset.sectionNav === section);
       });
+      this.updateCameraBar();
+      if (section === "camera-backups") this.loadBackups();
     },
 
     select(ev) {
       this.activate(ev.currentTarget.dataset.sectionNav);
+    },
+
+    // ---- camera edits: staged in the inputs, reviewed in a dialog ----
+
+    cameraControls() {
+      return Array.from(
+        this.$root.querySelectorAll("#camera-panes [data-camera-key]")
+      );
+    },
+
+    // the staged value of one control, comparable with its data-original.
+    controlValue(el) {
+      return el.type === "checkbox" ? (el.checked ? "1" : "0") : el.value;
+    },
+
+    // true when the control differs from what the camera reported.
+    controlChanged(el) {
+      if (el.disabled) return false;
+      if (el.dataset.secret === "1") {
+        // passwords start empty: a non-empty input is a change unless it is
+        // just the value the reveal button filled in.
+        return el.value !== "" && el.value !== el.dataset.revealed;
+      }
+      const original =
+        el.type === "checkbox"
+          ? el.dataset.original === "1" ? "1" : "0"
+          : el.dataset.original;
+      return this.controlValue(el) !== original;
+    },
+
+    // {changes: {key: value}, controls: [el], count} for every edited control.
+    cameraChanges() {
+      const changes = {};
+      const controls = [];
+      this.cameraControls().forEach((el) => {
+        const changed = this.controlChanged(el);
+        el.classList.toggle("is-changed", changed);
+        if (!changed) return;
+        changes[el.dataset.cameraKey] = this.controlValue(el);
+        controls.push(el);
+      });
+      return { changes, controls, count: controls.length };
+    },
+
+    updateCameraBar() {
+      const bar = this.$root.querySelector("#camera-apply-bar");
+      if (!bar) return;
+      const { count } = this.cameraChanges();
+      const here =
+        this.current.startsWith("camera-") && this.current !== "camera-backups";
+      bar.hidden = count === 0 || !here;
+      const label = bar.querySelector("[data-camera-count]");
+      if (label) label.textContent = count + (count === 1 ? " change" : " changes");
+    },
+
+    discardCameraChanges() {
+      this.cameraControls().forEach((el) => {
+        if (el.type === "checkbox") {
+          el.checked = el.dataset.original === "1";
+        } else {
+          el.value = el.dataset.original;
+        }
+        delete el.dataset.revealed;
+        if (el.dataset.secret === "1") el.type = "password";
+      });
+      this.updateCameraBar();
+    },
+
+    // text a person sees for a control's value (option label, On/Off, raw).
+    displayValue(el, raw) {
+      if (el.type === "checkbox") return raw === "1" ? "On" : "Off";
+      if (el.tagName === "SELECT") {
+        const opt = Array.from(el.options).find((o) => o.value === raw);
+        return opt ? opt.textContent : raw;
+      }
+      return raw;
+    },
+
+    reviewDialog() {
+      return this.$root.querySelector("#camera-review");
+    },
+
+    reviewPart(name) {
+      return this.reviewDialog().querySelector(`[${name}]`);
+    },
+
+    setReviewText(name, text) {
+      const el = this.reviewPart(name);
+      el.textContent = text;
+      el.hidden = text === "";
+    },
+
+    // resets the dialog to a clean state before it is filled.
+    resetReview() {
+      ["data-review-table", "data-review-wifi", "data-review-format",
+        "data-review-pending", "data-review-sync", "data-review-loss",
+        "data-review-progress", "data-review-result"].forEach((n) => {
+        this.reviewPart(n).hidden = true;
+      });
+      this.reviewPart("data-confirm-format").checked = false;
+      this.reviewPart("data-accept-loss").checked = false;
+      this.reviewPart("data-review-rows").replaceChildren();
+      this.reviewPart("data-review-cancel").textContent = "Cancel";
+      this.reviewPart("data-review-cancel").disabled = false;
+      this.review = { kind: "changes", changes: {}, name: "", busy: false, done: false };
+    },
+
+    // fills the table, shows warnings, and asks the camera how many recordings
+    // would be lost when a format key is staged.
+    async openCameraReview() {
+      const staged = this.cameraChanges();
+      if (staged.count === 0) return;
+      this.resetReview();
+      this.review.changes = staged.changes;
+      this.setReviewText("data-review-title", "Review changes");
+      const rows = this.reviewPart("data-review-rows");
+      staged.controls.forEach((el) => {
+        const tr = document.createElement("tr");
+        const secret = el.dataset.secret === "1";
+        const cells = [
+          el.dataset.cameraLabel,
+          secret ? "" : this.displayValue(el, el.dataset.original),
+          secret ? "changed" : this.displayValue(el, this.controlValue(el)),
+        ];
+        cells.forEach((text) => {
+          const td = document.createElement("td");
+          td.textContent = text;
+          tr.appendChild(td);
+        });
+        rows.appendChild(tr);
+      });
+      this.reviewPart("data-review-table").hidden = false;
+      const keys = Object.keys(staged.changes);
+      this.reviewPart("data-review-wifi").hidden = !keys.some(
+        (k) => k.startsWith("Wifi.") || k.startsWith("Cloud.")
+      );
+      const formats = staged.controls.some((el) => el.dataset.formatsCard === "1");
+      this.showReview();
+      if (formats) await this.checkPending(true);
+      this.syncApply();
+    },
+
+    async openRestoreReview(name) {
+      this.resetReview();
+      this.review.kind = "restore";
+      this.review.name = name;
+      this.setReviewText("data-review-title", "Restore " + name);
+      this.setReviewText(
+        "data-review-progress",
+        "Restoring replaces the camera's settings with this backup. Restoring " +
+          "a different time zone, daylight, GPS time sync or image setting makes " +
+          "the camera format its card."
+      );
+      this.showReview();
+      // a restore can change format keys, so the loss check always runs
+      await this.checkPending(false);
+      this.syncApply();
+    },
+
+    showReview() {
+      const dialog = this.reviewDialog();
+      if (!dialog.open) dialog.showModal();
+      this.syncApply();
+    },
+
+    closeCameraReview() {
+      if (this.review && this.review.busy) return;
+      this.reviewDialog().close();
+    },
+
+    // shows the erase warning and the pending count. force reveals the block
+    // even when nothing is pending; otherwise it appears only when needed.
+    async checkPending(force) {
+      if (force) this.reviewPart("data-review-format").hidden = false;
+      let pending = null;
+      try {
+        const resp = await fetch("/api/camera/pending", {
+          headers: { Accept: "application/json" },
+        });
+        const data = await readJson(resp);
+        if (isAuthFailure(resp, data)) {
+          redirectToLogin();
+          return;
+        }
+        if (resp.status === 200 && data) pending = Number(data.pending);
+      } catch {
+        pending = null;
+      }
+      if (pending === null) {
+        this.reviewPart("data-review-format").hidden = false;
+        this.setReviewText(
+          "data-review-pending",
+          "Can't check how many recordings are not downloaded yet: the camera " +
+            "is not reachable right now."
+        );
+        return;
+      }
+      if (pending > 0) {
+        this.reviewPart("data-review-format").hidden = false;
+        this.setReviewText(
+          "data-review-pending",
+          pending + (pending === 1 ? " recording has" : " recordings have") +
+            " not been downloaded yet."
+        );
+        this.reviewPart("data-review-sync").hidden = false;
+        this.setReviewText(
+          "data-review-loss-text",
+          "I accept losing " + pending + (pending === 1 ? " recording" : " recordings")
+        );
+        this.reviewPart("data-review-loss").hidden = false;
+      }
+    },
+
+    // Apply needs every visible confirmation ticked.
+    syncApply() {
+      const dialog = this.reviewDialog();
+      const apply = this.reviewPart("data-review-apply");
+      const format = this.reviewPart("data-review-format");
+      const loss = this.reviewPart("data-review-loss");
+      let ok = !this.review.busy && !this.review.done;
+      if (!format.hidden && !this.reviewPart("data-confirm-format").checked) ok = false;
+      if (!loss.hidden && !this.reviewPart("data-accept-loss").checked) ok = false;
+      apply.disabled = !ok;
+      apply.hidden = this.review.done;
+      dialog.dataset.state = this.review.busy ? "busy" : this.review.done ? "done" : "ready";
+    },
+
+    resultText(data) {
+      const parts = [];
+      if (data.verified) {
+        parts.push("Applied and verified (backup " + data.backup + ").");
+      } else if (data.came_back) {
+        parts.push("Applied, but the camera's settings could not be verified (backup " + data.backup + ").");
+      } else {
+        parts.push("Applied, but the camera has not come back yet (backup " + data.backup + ").");
+      }
+      if (data.kept && data.kept.length > 0) {
+        parts.push("The camera kept its own value for: " + data.kept.join(", ") + ".");
+      }
+      return parts.join(" ");
+    },
+
+    async applyCamera() {
+      const review = this.review;
+      const body = {
+        confirm_format: this.reviewPart("data-confirm-format").checked === true,
+        accept_loss: this.reviewPart("data-accept-loss").checked === true,
+      };
+      let path = "/api/camera/config";
+      if (review.kind === "restore") {
+        path = "/api/camera/backups/" + encodeURIComponent(review.name) + "/restore";
+      } else {
+        body.changes = review.changes;
+      }
+      review.busy = true;
+      this.reviewPart("data-review-result").hidden = true;
+      this.reviewPart("data-review-cancel").disabled = true;
+      this.setReviewText(
+        "data-review-progress",
+        "Backing up the config, uploading, waiting for the camera to restart, " +
+          "then verifying. This can take a couple of minutes."
+      );
+      this.syncApply();
+      const resp = await this.send(path, body, "POST");
+      const data = resp ? await readJson(resp) : null;
+      review.busy = false;
+      this.reviewPart("data-review-cancel").disabled = false;
+      this.setReviewText("data-review-progress", "");
+      if (resp && isAuthFailure(resp, data)) {
+        redirectToLogin();
+        return;
+      }
+      const result = this.reviewPart("data-review-result");
+      result.classList.remove("is-error");
+      if (resp && resp.status === 200 && data) {
+        review.done = true;
+        result.textContent = this.resultText(data);
+        this.reviewPart("data-review-cancel").textContent = "Close";
+        htmx.ajax("GET", "/hx/camera/panes", "#camera-panes");
+        if (this.current === "camera-backups") this.loadBackups();
+      } else {
+        result.classList.add("is-error");
+        let text = resp ? failureText(resp, data) : "network error; please retry";
+        if (data && Array.isArray(data.errors) && data.errors.length > 0) {
+          text += ": " + data.errors.join("; ");
+        }
+        if (data && data.code === "FORMAT_CONFIRMATION_REQUIRED") {
+          // the server decides which changes erase the card; show the gate
+          this.reviewPart("data-review-format").hidden = false;
+          await this.checkPending(true);
+        }
+        result.textContent = text;
+      }
+      result.hidden = false;
+      this.syncApply();
+    },
+
+    // ---- backups pane ----
+
+    async loadBackups() {
+      const list = this.$root.querySelector("[data-backups-list]");
+      const error = this.$root.querySelector("[data-backups-error]");
+      const empty = this.$root.querySelector("[data-backups-empty]");
+      let resp;
+      try {
+        resp = await fetch("/api/camera/backups", {
+          headers: { Accept: "application/json" },
+        });
+      } catch {
+        resp = null;
+      }
+      const data = resp ? await readJson(resp) : null;
+      if (resp && isAuthFailure(resp, data)) {
+        redirectToLogin();
+        return;
+      }
+      list.replaceChildren();
+      if (!resp || resp.status !== 200 || !Array.isArray(data)) {
+        error.textContent = "could not list backups (" +
+          (resp ? failureText(resp, data) : "network error") + ")";
+        error.hidden = false;
+        empty.hidden = true;
+        return;
+      }
+      error.hidden = true;
+      empty.hidden = data.length > 0;
+      data.forEach((b) => {
+        const li = document.createElement("li");
+        li.className = "camera-backup";
+        const name = document.createElement("span");
+        name.className = "camera-backup-name";
+        name.textContent = b.name;
+        const when = document.createElement("span");
+        when.className = "camera-backup-meta";
+        when.textContent =
+          new Date(b.created).toLocaleString() + " · " + this.sizeText(b.size);
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "button button-secondary button-sm";
+        button.dataset.restore = b.name;
+        button.textContent = "Restore";
+        li.append(name, when, button);
+        list.appendChild(li);
+      });
+    },
+
+    sizeText(bytes) {
+      return bytes >= 1024 ? (bytes / 1024).toFixed(1) + " KiB" : bytes + " B";
     },
 
     // shows or re-masks one camera password; the value is fetched per click
@@ -110,6 +482,10 @@ document.addEventListener("alpine:init", () => {
       if (!target) return;
       if (button.getAttribute("aria-pressed") === "true") {
         target.textContent = MASK;
+        const field = this.$root.querySelector(
+          `#camera-panes [data-camera-key="${CSS.escape(key)}"]`
+        );
+        if (field) field.type = "password";
         button.setAttribute("aria-pressed", "false");
         button.setAttribute("aria-label", "Show password");
         button.title = "Show password";
@@ -134,6 +510,17 @@ document.addEventListener("alpine:init", () => {
         return;
       }
       target.textContent = data.value;
+      // an editable password input is filled too; the revealed value is not a
+      // change until the user alters it.
+      const input = this.$root.querySelector(
+        `#camera-panes [data-camera-key="${CSS.escape(key)}"]`
+      );
+      if (input && !input.disabled) {
+        input.value = data.value;
+        input.dataset.revealed = data.value;
+        input.type = "text";
+        this.updateCameraBar();
+      }
       button.setAttribute("aria-pressed", "true");
       button.setAttribute("aria-label", "Hide password");
       button.title = "Hide password";
