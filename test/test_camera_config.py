@@ -19,6 +19,7 @@ import pytest
 from blackvuesync_v2.server import camera_config
 from blackvuesync_v2.server.camera_config import (
     GENERAL_SECTION,
+    BackupStore,
     CameraRead,
     CameraStore,
     Change,
@@ -389,3 +390,36 @@ def test_wait_until_back_gives_up(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(time, "monotonic", lambda: next(clock))
     monkeypatch.setattr(time, "sleep", lambda _s: None)
     assert wait_until_back("cam", timeout=10.0, poll=1.0) is None
+
+
+def test_backups_are_private_named_by_local_time_and_pruned(tmp_path: Path) -> None:
+    store = BackupStore(tmp_path / "camera" / "backups")
+    assert store.list() == []
+    names = []
+    for minute in range(3):
+        when = datetime.datetime(2026, 10, 27, 21, minute, 0).astimezone()
+        names.append(store.save(b"[Tab1]\nVOLUME=%d\n" % minute, now=when))
+    assert names[0] == "config-20261027-210000.ini"
+    assert _mode(tmp_path / "camera" / "backups") == 0o700
+    assert _mode(tmp_path / "camera" / "backups" / names[0]) == 0o600
+    assert [b.name for b in store.list()] == list(reversed(names))
+    assert store.list()[0].size == len(b"[Tab1]\nVOLUME=2\n")
+    store.prune(keep=2)
+    assert [b.name for b in store.list()] == [names[2], names[1]]
+    assert store.read(names[1]) == b"[Tab1]\nVOLUME=1\n"
+    assert store.read(names[0]) is None
+
+
+def test_backup_read_rejects_names_outside_the_pattern(tmp_path: Path) -> None:
+    store = BackupStore(tmp_path / "backups")
+    store.save(b"x")
+    for bad in ("../settings.json", "config-20261027-210000.ini/../x", "evil.ini"):
+        assert store.read(bad) is None
+
+
+def test_backup_save_twice_in_one_second_keeps_both(tmp_path: Path) -> None:
+    store = BackupStore(tmp_path / "backups")
+    when = datetime.datetime(2026, 10, 27, 21, 0, 0).astimezone()
+    first = store.save(b"a", now=when)
+    second = store.save(b"b", now=when)
+    assert first != second and store.read(second) == b"b"

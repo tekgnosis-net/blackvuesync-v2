@@ -391,8 +391,74 @@ def wait_until_back(address: str, timeout: float, poll: float) -> CameraRead | N
         time.sleep(poll)
 
 
+BACKUP_NAME_RE = re.compile(r"config-\d{8}-\d{6}(?:-\d+)?\.ini")
+
+
+@dataclasses.dataclass(frozen=True)
+class BackupInfo:
+    """one saved copy of the camera's file."""
+
+    name: str
+    created: datetime.datetime
+    size: int
+
+
+class BackupStore:
+    """keeps copies of config.ini taken before each upload (0700/0600)."""
+
+    def __init__(self, directory: Path) -> None:
+        self._dir = directory
+
+    def save(self, raw: bytes, now: datetime.datetime | None = None) -> str:
+        """stores raw under a local-time name; returns the name."""
+        self._dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(self._dir, 0o700)
+        stamp = (now or datetime.datetime.now()).astimezone().strftime("%Y%m%d-%H%M%S")
+        name = f"config-{stamp}.ini"
+        suffix = 1
+        while (self._dir / name).exists():
+            name = f"config-{stamp}-{suffix}.ini"
+            suffix += 1
+        _write_private(self._dir / name, raw)
+        return name
+
+    def list(self) -> list[BackupInfo]:
+        """returns the backups, newest first."""
+        if not self._dir.is_dir():
+            return []
+        infos = []
+        for path in self._dir.iterdir():
+            if BACKUP_NAME_RE.fullmatch(path.name) and path.is_file():
+                stat_result = path.stat()
+                infos.append(
+                    BackupInfo(
+                        name=path.name,
+                        created=datetime.datetime.fromtimestamp(
+                            stat_result.st_mtime, datetime.timezone.utc
+                        ),
+                        size=stat_result.st_size,
+                    )
+                )
+        return sorted(infos, key=lambda b: b.name, reverse=True)
+
+    def prune(self, keep: int) -> None:
+        """deletes all but the newest keep backups."""
+        for info in self.list()[max(keep, 0) :]:
+            (self._dir / info.name).unlink(missing_ok=True)
+
+    def read(self, name: str) -> bytes | None:
+        """returns a backup's bytes; None for an unknown or malformed name."""
+        if not BACKUP_NAME_RE.fullmatch(name):
+            return None
+        path = self._dir / name
+        return path.read_bytes() if path.is_file() else None
+
+
 __all__ = [
     "GENERAL_SECTION",
+    "BACKUP_NAME_RE",
+    "BackupInfo",
+    "BackupStore",
     "CameraFile",
     "CameraRead",
     "CameraStore",
