@@ -5,8 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from blackvuesync_v2.server.camera_config import parse
+from blackvuesync_v2.server.camera_crypto import decrypt_password
 from blackvuesync_v2.server.camera_schema import (
     FIELDS,
+    FORMAT_KEYS,
     MASK,
     TABS,
     build_tabs,
@@ -14,6 +16,8 @@ from blackvuesync_v2.server.camera_schema import (
     field_for,
     format_utc_offset,
     is_secret,
+    prepare_changes,
+    validate_change,
 )
 
 CONFIG = (
@@ -189,3 +193,86 @@ def test_calibrated_codes_from_the_dr900x_plus() -> None:
         field = field_for(section, key)
         assert (field.minimum, field.maximum) == (0, 10)
     assert auto.help == ""
+
+
+def test_format_keys_are_the_time_and_image_settings() -> None:
+    assert (
+        frozenset(
+            ("Tab1", k)
+            for k in (
+                "TimeSet",
+                "SetTime",
+                "TimeZone",
+                "Daylight",
+                "GpsSync",
+                "ImageSetting",
+                "VideoQuality",
+            )
+        )
+        == FORMAT_KEYS
+    )
+
+
+def test_validate_change_by_widget() -> None:
+    assert validate_change("Tab1", "VideoQuality", "3") == []
+    assert validate_change("Tab1", "VideoQuality", "9") == [
+        "Tab1.VideoQuality: not one of 0, 1, 2, 3"
+    ]
+    assert validate_change("Tab3", "RECLED", "2") == ["Tab3.RECLED: must be 0 or 1"]
+    assert validate_change("Tab3", "VOLUME", "4") == []
+    assert validate_change("Tab3", "VOLUME", "abc") == [
+        "Tab3.VOLUME: must be a whole number"
+    ]
+    assert validate_change("Tab3", "VOLUME", "11") == [
+        "Tab3.VOLUME: must be between 0 and 10"
+    ]
+    assert validate_change("Tab2", "MOTIONSENSOR", "-1") == [
+        "Tab2.MOTIONSENSOR: must be between 0 and 10"
+    ]
+    assert validate_change("Tab3", "ScheduledRebootTime", "24") == [
+        "Tab3.ScheduledRebootTime: must be an hour from 0 to 23"
+    ]
+    for ok in ("930", "0", "-1100", "1000"):
+        assert validate_change("Tab1", "TimeZone", ok) == []
+    assert validate_change("Tab1", "TimeZone", "1070") == [
+        "Tab1.TimeZone: must be a UTC offset like 1000 or -1100"
+    ]
+    assert validate_change("Tab1", "RecordTime", "2") == ["Tab1.RecordTime: read-only"]
+    assert validate_change("Cloud", "sta_ssid", "x" * 33) == [
+        "Cloud.sta_ssid: at most 32 bytes"
+    ]
+    assert validate_change("Cloud", "sta_ssid", "Café") == []
+    assert validate_change("Tab3", "userString", "a" * 21) == [
+        "Tab3.userString: at most 20 characters"
+    ]
+    assert validate_change("Wifi", "ap_pw", "short") == [
+        "Wifi.ap_pw: 8 to 32 characters"
+    ]
+    assert validate_change("Cloud", "sta2_pw", "") == []
+    assert validate_change("Wifi", "ap_pw", "") == ["Wifi.ap_pw: 8 to 32 characters"]
+    assert validate_change("Tab1", "VOLUME", "4\n") == [
+        "Tab1.VOLUME: control characters are not allowed"
+    ]
+    assert validate_change("Fancy", "Mode", "2") == []
+
+
+def test_validate_change_rejects_unicode_line_separators() -> None:
+    for ch in ("\u0085", " ", " "):
+        assert validate_change("Tab3", "userString", f"a{ch}b") == [
+            "Tab3.userString: control characters are not allowed"
+        ]
+
+
+def test_prepare_changes_encrypts_passwords_and_collects_errors() -> None:
+    changes, errors = prepare_changes(
+        {"Tab3.VOLUME": "4", "Cloud.sta_pw": "DemoHome-123"}
+    )
+    assert errors == []
+    assert changes[("Tab3", "VOLUME")] == "4"
+    assert decrypt_password(changes[("Cloud", "sta_pw")]) == "DemoHome-123"
+    assert changes[("Cloud", "sta_pw")] != "DemoHome-123"
+    _changes, errors = prepare_changes({"Tab3.VOLUME": "x", "nodot": "1"})
+    assert errors == [
+        "Tab3.VOLUME: must be a whole number",
+        "nodot: expected Section.key",
+    ]

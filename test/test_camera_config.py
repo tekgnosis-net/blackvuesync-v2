@@ -318,6 +318,9 @@ def test_patch_refuses_missing_duplicate_and_control_characters() -> None:
         patch(b"[Tab1]\nVOLUME=5\nVOLUME=6\n", {("Tab1", "VOLUME"): "4"})
     with pytest.raises(PatchError):
         patch(b"[Tab1]\nVOLUME=5\n", {("Tab1", "VOLUME"): "4\n[Wifi]\nap_pw=x"})
+    for sep in ("\u0085", "\u2028", "\u2029"):
+        with pytest.raises(PatchError):
+            patch(b"[Tab1]\nVOLUME=5\n", {("Tab1", "VOLUME"): f"4{sep}x"})
 
 
 def test_self_check_catches_a_tampered_patch() -> None:

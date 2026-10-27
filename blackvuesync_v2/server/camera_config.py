@@ -269,7 +269,7 @@ class PatchError(ValueError):
     """the requested change cannot be applied to this file unambiguously."""
 
 
-_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f\x85\u2028\u2029]")
 
 
 def patch(raw: bytes, changes: dict[tuple[str, str], str]) -> bytes:

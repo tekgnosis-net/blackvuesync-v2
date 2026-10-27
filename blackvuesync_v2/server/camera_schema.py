@@ -11,6 +11,7 @@ import dataclasses
 import re
 
 from blackvuesync_v2.server.camera_config import CameraFile, safe_text
+from blackvuesync_v2.server.camera_crypto import encrypt_password
 
 MASK = "•" * 8
 
@@ -441,8 +442,89 @@ def build_tabs(cfile: CameraFile) -> list[TabView]:
     ]
 
 
+FORMAT_KEYS: frozenset[tuple[str, str]] = frozenset(
+    (f.section, f.key) for f in _FIELDS if f.formats_card
+)
+# also the separators str.splitlines() splits on (next line, line, paragraph)
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f\x85\u2028\u2029]")
+_INT_RE = re.compile(r"-?[0-9]{1,6}")
+_TEXT_LIMITS = {("Tab3", "userString"): 20}
+
+
+def _valid_offset(value: str) -> bool:
+    """returns whether value is a signed HHMM utc offset."""
+    return value == "0" or (
+        _ASCII_OFFSET_RE.fullmatch(value) is not None
+        and format_utc_offset(value) != value
+    )
+
+
+def validate_change(  # pylint: disable=too-many-return-statements,too-many-branches
+    section: str, key: str, value: str
+) -> list[str]:
+    """returns the problems with setting section.key to value (empty = ok)."""
+    name = f"{section}.{key}"
+    if _CONTROL_RE.search(value):
+        return [f"{name}: control characters are not allowed"]
+    field = field_for(section, key)
+    if field.read_only:
+        return [f"{name}: read-only"]
+    if field.secret:
+        if value == "" and key != "ap_pw":
+            return []
+        return [] if 8 <= len(value) <= 32 else [f"{name}: 8 to 32 characters"]
+    if field.key == "TimeZone":
+        if _valid_offset(value):
+            return []
+        return [f"{name}: must be a UTC offset like 1000 or -1100"]
+    if field.widget == "select":
+        allowed = [raw for raw, _label in field.options]
+        return [] if value in allowed else [f"{name}: not one of {', '.join(allowed)}"]
+    if field.widget == "toggle":
+        return [] if value in ("0", "1") else [f"{name}: must be 0 or 1"]
+    if field.widget == "hour":
+        ok = _ASCII_HOUR_RE.fullmatch(value) is not None and int(value) <= 23
+        return [] if ok else [f"{name}: must be an hour from 0 to 23"]
+    if field.widget == "number":
+        if not _INT_RE.fullmatch(value):
+            return [f"{name}: must be a whole number"]
+        low, high = field.minimum, field.maximum
+        if low is not None and high is not None and not low <= int(value) <= high:
+            return [f"{name}: must be between {low} and {high}"]
+        return []
+    if key.endswith("_ssid") and len(value.encode("utf-8")) > 32:
+        return [f"{name}: at most 32 bytes"]
+    limit = _TEXT_LIMITS.get((section, key))
+    if limit is not None and len(value) > limit:
+        return [f"{name}: at most {limit} characters"]
+    return []
+
+
+def prepare_changes(
+    raw_changes: dict[str, str],
+) -> tuple[dict[tuple[str, str], str], list[str]]:
+    """validates "Section.key" -> value pairs and encodes passwords for the file."""
+    changes: dict[tuple[str, str], str] = {}
+    errors: list[str] = []
+    for full_key, value in raw_changes.items():
+        section, dot, key = full_key.partition(".")
+        if not dot or not section or not key:
+            errors.append(f"{full_key}: expected Section.key")
+            continue
+        problems = validate_change(section, key, str(value))
+        if problems:
+            errors.extend(problems)
+            continue
+        if is_secret(section, key) and value != "":
+            changes[(section, key)] = encrypt_password(str(value))
+        else:
+            changes[(section, key)] = str(value)
+    return changes, errors
+
+
 __all__ = [
     "FIELDS",
+    "FORMAT_KEYS",
     "MASK",
     "TABS",
     "CameraField",
@@ -454,4 +536,6 @@ __all__ = [
     "field_for",
     "format_utc_offset",
     "is_secret",
+    "prepare_changes",
+    "validate_change",
 ]
