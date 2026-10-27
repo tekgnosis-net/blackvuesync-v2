@@ -2,7 +2,7 @@
 # much faster than pip and reuses pyproject.toml-pinned versions consistently
 # across dev and image builds. confining uv to this stage keeps it -- and the
 # bytes of its COPY layer -- out of the final image entirely.
-FROM alpine:3.24.2 AS builder
+FROM alpine:3.24.3 AS builder
 
 RUN apk add --update python3
 COPY --from=ghcr.io/astral-sh/uv:0.11.15 /uv /usr/local/bin/uv
@@ -12,7 +12,7 @@ RUN uv venv /opt/venv \
         "argon2-cffi>=23.1,<26.0" "APScheduler~=3.10" "cryptography~=50.0"
 
 # final stage: starts clean and copies only the populated venv from the builder.
-FROM alpine:3.24.2
+FROM alpine:3.24.3
 
 LABEL org.opencontainers.image.title="BlackVue Sync v2"
 LABEL org.opencontainers.image.description="Hands-off synchronization of BlackVue dashcam recordings with a web dashboard, viewer and statistics"
