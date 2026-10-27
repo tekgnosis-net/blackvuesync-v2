@@ -24,7 +24,8 @@ class LogLine:
     """immutable, json-serializable view of a single log record."""
 
     seq: int
-    ts: str  # iso-8601 utc with a trailing Z
+    ts: str  # iso-8601 utc with a trailing Z (dedup key, api consumers)
+    time: str  # local time per the process TZ, as the log file shows it
     level: str
     level_no: int
     logger: str
@@ -109,10 +110,12 @@ class LogBuffer(logging.Handler):
         """
         try:
             message = record.getMessage()
-            ts = (
-                datetime.datetime.fromtimestamp(record.created, datetime.timezone.utc)
-                .isoformat(timespec="milliseconds")
-                .replace("+00:00", "Z")
+            created = datetime.datetime.fromtimestamp(
+                record.created, datetime.timezone.utc
+            )
+            ts = created.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+            time = created.astimezone().strftime("%Y-%m-%d %H:%M:%S.") + (
+                f"{created.microsecond // 1000:03d}"
             )
         except Exception:  # pylint: disable=broad-exception-caught
             self.handleError(record)
@@ -122,6 +125,7 @@ class LogBuffer(logging.Handler):
             line = LogLine(
                 seq=self._seq,
                 ts=ts,
+                time=time,
                 level=record.levelname,
                 level_no=record.levelno,
                 logger=record.name,

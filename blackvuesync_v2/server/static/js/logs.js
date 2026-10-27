@@ -159,7 +159,7 @@ document.addEventListener("alpine:init", () => {
       row.dataset.levelNo = String(ln.level_no);
       row.dataset.seq = String(ln.seq);
       row.append(
-        this.cell("log-ts", ln.ts),
+        this.timeCell(ln),
         this.cell("log-level log-level-" + ln.level, ln.level),
         this.cell("log-logger", ln.logger),
         this.cell("log-msg", ln.message)
@@ -169,6 +169,16 @@ document.addEventListener("alpine:init", () => {
     },
 
     // builds one row cell with textContent (never innerHTML; messages are untrusted).
+    // local time for reading; the utc instant stays on the element for tooling
+    timeCell(ln) {
+      const el = document.createElement("time");
+      el.className = "log-ts";
+      el.dateTime = ln.ts;
+      el.title = ln.ts;
+      el.textContent = ln.time;
+      return el;
+    },
+
     cell(className, text) {
       const span = document.createElement("span");
       span.className = className;

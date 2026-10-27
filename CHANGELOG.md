@@ -12,6 +12,16 @@ repository. Versions 2.2.0 and earlier are the upstream
 [BlackVue Sync](https://github.com/acolomba/blackvuesync) by Alessandro
 Colomba; their numbers refer to upstream pull requests.
 
+## Unreleased
+
+### Fixed
+
+* The Logs page showed timestamps in UTC (for example `…T10:42:17.186Z`),
+  so they read an hour or two off local time. It now shows the container's
+  local time (the `TZ` setting), the same as the log file; hovering a
+  timestamp shows the UTC instant. The `/api/logs` responses keep `ts` (UTC)
+  and gain `time` (local).
+
 ## 3.2.1 - 2026-10-05
 
 ### Fixed

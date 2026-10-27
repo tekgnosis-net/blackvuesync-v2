@@ -624,6 +624,7 @@ Returns the current in-memory log buffer snapshot as JSON.
     {
       "seq": 1,
       "ts": "2026-01-01T12:00:00.000Z",
+      "time": "2026-01-01 23:00:00.000",
       "level": "INFO",
       "level_no": 20,
       "logger": "blackvuesync",
