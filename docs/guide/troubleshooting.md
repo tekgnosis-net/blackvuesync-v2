@@ -162,7 +162,9 @@ name is in the dialog and in the log.
 
 ### The apply request timed out or the upload failed
 
-An apply is one long request (up to `camera.verify_timeout_seconds`). If a
+An apply is one long request (up to `camera.upload_timeout_seconds` plus
+`camera.verify_timeout_seconds` plus two camera reads, about 3 minutes by
+default; size a proxy timeout above that). If a
 reverse proxy in front of the app times out sooner, the page shows a network
 error but the apply carries on; press **Refresh** on the Camera pane to see
 what the camera holds now. The same advice applies to "upload failed": the

@@ -205,7 +205,11 @@ def _apply(
     backups.prune(cam.backup_count, protect=backup)
     confirmed = _upload(settings.connection.address, patched, cam, backup)
     changed = _describe(changes)
-    logger.info("camera settings uploaded: %s", ", ".join(changed))
+    logger.info(
+        "camera settings %s: %s",
+        "uploaded" if confirmed else "sent",
+        ", ".join(changed),
+    )
     back = camera_config.wait_until_back(
         settings.connection.address,
         cam.verify_timeout_seconds,

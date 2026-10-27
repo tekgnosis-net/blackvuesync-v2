@@ -73,11 +73,13 @@ When the camera drops the connection before it acknowledges the upload (it may
 restart first), the app does not call that a failure: it waits and verifies as
 usual, and the dialog adds "The camera did not acknowledge the upload; the
 result below is what it reports now." Only a camera that answers with an error
-fails the upload outright.
+fails the upload outright. If the camera then still holds every old value, the dialog says the change
+did not take effect.
 
-The apply is a single long request, up to `camera.verify_timeout_seconds`. A
-reverse proxy with a shorter timeout may cut the connection; the apply keeps
-running on the server. Press **Refresh** on the Camera pane to see the
+The apply is a single long request, up to `camera.upload_timeout_seconds` plus
+`camera.verify_timeout_seconds` plus two camera reads (about 3 minutes with the
+defaults). Set a reverse proxy's timeout above that; a shorter one may cut the
+connection, but the apply keeps running on the server. Press **Refresh** on the Camera pane to see the
 result.
 
 Password fields start empty and an empty field means unchanged: there is no

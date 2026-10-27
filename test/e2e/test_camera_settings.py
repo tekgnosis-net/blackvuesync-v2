@@ -227,3 +227,34 @@ def test_backups_pane_lists_and_restores(
     expect(dialog).to_have_attribute("data-state", "done")
     expect(dialog.locator("[data-review-result]")).to_contain_text("Applied")
     assert fake_camera.config == FIXTURE.read_bytes()
+
+
+@pytest.mark.usefixtures("fake_camera")
+def test_restore_with_nothing_to_change_says_so(live_server: Any, page: Page) -> None:
+    _apply_one_change(page, live_server.url)
+    page.locator('[data-section-nav="camera-backups"]').click()
+    page.locator(".camera-backup button[data-restore]").first.click()
+    dialog = page.locator("#camera-review")
+    dialog.locator("[data-review-apply]").click()
+    expect(dialog).to_have_attribute("data-state", "done")
+    dialog.locator("[data-review-cancel]").click()
+    # the camera now equals the original backup, so restoring it changes nothing
+    page.locator(".camera-backup button[data-restore]").last.click()
+    expect(dialog.locator("[data-review-result]")).to_contain_text("Nothing to restore")
+    expect(dialog).to_have_attribute("data-state", "done")
+    expect(dialog.locator("[data-review-apply]")).to_be_hidden()
+
+
+def test_a_dropped_upload_that_did_not_apply_says_so(
+    live_server: Any, fake_camera: Any, page: Page
+) -> None:
+    fake_camera.drop_uploads = True
+    _open_camera_tab(page, live_server.url, "system")
+    _stage(page, "system", "Tab3.VOLUME", "4")
+    page.get_by_role("button", name="Review & apply").click()
+    dialog = page.locator("#camera-review")
+    dialog.locator("[data-review-apply]").click()
+    result = dialog.locator("[data-review-result]")
+    expect(result).to_contain_text("did not take effect", timeout=30000)
+    expect(result).not_to_contain_text("Applied")
+    assert b"VOLUME=4" not in fake_camera.config

@@ -23,7 +23,8 @@ setting at a time in the BlackVue app and diffing `config.ini`.
 `Tab1.TimeZone` is a signed HHMM offset from UTC (the fixture holds `1000`). The
 firmware's own list was never calibrated, so the settings page does not
 enumerate one: it validates the text instead (-1200 to +1400, minutes 00, 30
-or 45). `Tab1.SetTime` is a 24-hour `HHMM` time.
+or 45). The app writes it in the fixture's form: no leading `+`, zero-padded to
+four digits (`930` becomes `0930`, `-930` becomes `-0930`). `Tab1.SetTime` is a 24-hour `HHMM` time.
 
 ## Endpoints
 

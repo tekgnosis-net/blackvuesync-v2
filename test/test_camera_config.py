@@ -429,7 +429,7 @@ def test_backup_save_twice_in_one_second_keeps_both(tmp_path: Path) -> None:
     assert first != second and store.read(second) == b"b"
 
 
-def test_backup_list_orders_same_second_saves_by_mtime_then_name(
+def test_backup_list_orders_same_second_saves_by_name_suffix_not_mtime(
     tmp_path: Path,
 ) -> None:
     store = BackupStore(tmp_path / "backups")
@@ -438,8 +438,8 @@ def test_backup_list_orders_same_second_saves_by_mtime_then_name(
     second = store.save(b"b", now=when)
     assert second == first.replace(".ini", "-1.ini")
     directory = tmp_path / "backups"
-    os.utime(directory / first, (1_000_000, 1_000_000))
-    os.utime(directory / second, (1_000_100, 1_000_100))
+    os.utime(directory / first, (1_000_100, 1_000_100))
+    os.utime(directory / second, (1_000_000, 1_000_000))
     assert [b.name for b in store.list()] == [second, first]
 
 
@@ -472,12 +472,11 @@ def test_prune_orders_by_name_and_never_deletes_the_protected_copy(
     # suffix 10 sorts after suffix 2 numerically, not as text
     assert names[10].endswith("-10.ini")
     # a skewed mtime must not make the newest copy look oldest
-    os.utime(directory / names[10], (1_000, 1_000))
+    for name in names:
+        os.utime(directory / name, (1_000, 1_000))
     store.prune(keep=3, protect=names[10])
-    left = sorted(p.name for p in directory.iterdir())
-    assert names[10] in left
-    assert names[9] in left and names[8] in left
-    assert names[0] not in left and len(left) <= 4
+    left = {p.name for p in directory.iterdir()}
+    assert left == {names[10], names[9], names[8]}
     store.prune(keep=0, protect=names[10])
     assert [p.name for p in directory.iterdir()] == [names[10]]
 

@@ -238,6 +238,18 @@ def test_validate_change_by_widget() -> None:
         assert validate_change("Tab1", "TimeZone", bad) == [
             "Tab1.TimeZone: must be a UTC offset like 1000 or -1100"
         ], bad
+    assert prepare_changes({"Tab1.TimeZone": "+1000"})[0] == {
+        ("Tab1", "TimeZone"): "1000"
+    }
+    assert prepare_changes({"Tab1.TimeZone": "930"})[0] == {
+        ("Tab1", "TimeZone"): "0930"
+    }
+    assert prepare_changes({"Tab1.TimeZone": "-930"})[0] == {
+        ("Tab1", "TimeZone"): "-0930"
+    }
+    assert prepare_changes({"Tab1.TimeZone": "-1100"})[0] == {
+        ("Tab1", "TimeZone"): "-1100"
+    }
     assert validate_change("Tab1", "SetTime", "2359") == []
     for bad in ("2400", "1260", "12", "abcd"):
         assert validate_change("Tab1", "SetTime", bad) == [

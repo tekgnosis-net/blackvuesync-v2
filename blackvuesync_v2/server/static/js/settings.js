@@ -322,6 +322,17 @@ document.addEventListener("alpine:init", () => {
         this.syncApply();
         return;
       }
+      if (preview.changes.length === 0) {
+        review.checking = false;
+        review.done = true;
+        const none = this.reviewPart("data-review-result");
+        none.classList.remove("is-error");
+        none.textContent = "Nothing to restore: the camera already has these settings.";
+        none.hidden = false;
+        this.reviewPart("data-review-cancel").textContent = "Close";
+        this.syncApply();
+        return;
+      }
       const rows = this.reviewPart("data-review-rows");
       preview.changes.forEach((c) => this.appendReviewRow(rows, [c.label, c.from, c.to]));
       this.reviewPart("data-review-table").hidden = preview.changes.length === 0;
@@ -428,6 +439,17 @@ document.addEventListener("alpine:init", () => {
         parts.push(
           "The camera did not acknowledge the upload; the result below is " +
             "what it reports now."
+        );
+      }
+      const kept = data.kept || [];
+      if (
+        data.upload_confirmed === false && data.came_back && !data.verified &&
+        kept.length > 0 && kept.length === (data.changed || []).length
+      ) {
+        return (
+          "The camera did not acknowledge the upload and still holds its old " +
+          "values for: " + kept.join(", ") + ". The change did not take effect " +
+          "(backup " + data.backup + ")."
         );
       }
       if (data.verified) {

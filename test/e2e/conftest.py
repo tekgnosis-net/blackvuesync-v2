@@ -70,6 +70,7 @@ class FakeCameraServer:
     def __init__(self) -> None:
         self.config = (_CAMERA_FIXTURES / "dr900x-plus-config.ini").read_bytes()
         self.vod: list[str] = []
+        self.drop_uploads = False  # closes the connection without a reply
         version = (_CAMERA_FIXTURES / "dr900x-plus-version.bin").read_bytes()
         outer = self
 
@@ -97,6 +98,9 @@ class FakeCameraServer:
                 body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
                 if self.path.split("?")[0] != "/upload.cgi":
                     self._reply(404, b"")
+                    return
+                if outer.drop_uploads:
+                    self.close_connection = True
                     return
                 head = b"Content-Type: " + self.headers["Content-Type"].encode()
                 message = email.message_from_bytes(head + b"\r\n\r\n" + body)

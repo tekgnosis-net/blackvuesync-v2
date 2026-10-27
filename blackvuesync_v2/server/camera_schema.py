@@ -480,6 +480,12 @@ def _valid_offset(value: str) -> bool:
     return -1200 <= number <= 1400 and abs(number) % 100 in (0, 30, 45)
 
 
+def _normal_offset(value: str) -> str:
+    """writes an offset in the camera's own form: no plus, four digits."""
+    sign = "-" if value.startswith("-") else ""
+    return sign + value.lstrip("+-").zfill(4)
+
+
 def _valid_clock(value: str) -> bool:
     """returns whether value is an empty or a 24-hour HHMM time."""
     if value == "":
@@ -555,6 +561,8 @@ def prepare_changes(
             continue
         if is_secret(section, key) and value != "":
             changes[(section, key)] = encrypt_password(str(value))
+        elif (section, key) == ("Tab1", "TimeZone"):
+            changes[(section, key)] = _normal_offset(str(value))
         else:
             changes[(section, key)] = str(value)
     return changes, errors

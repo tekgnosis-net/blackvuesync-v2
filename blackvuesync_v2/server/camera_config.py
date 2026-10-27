@@ -459,7 +459,7 @@ class BackupStore:
                         size=stat_result.st_size,
                     )
                 )
-        return sorted(infos, key=lambda b: (b.created, b.name), reverse=True)
+        return sorted(infos, key=lambda b: _backup_order(b.name), reverse=True)
 
     def prune(self, keep: int, protect: str | None = None) -> None:
         """deletes all but the newest keep backups; protect is never deleted.
@@ -467,9 +467,8 @@ class BackupStore:
         newest follows the name (timestamp, then collision suffix), not the
         file's mtime, so a clock step cannot make the fresh copy look old.
         """
-        names = [info.name for info in self.list()]
-        names.sort(key=_backup_order, reverse=True)
-        for name in names[max(keep, 0) :]:
+        for info in self.list()[max(keep, 0) :]:
+            name = info.name
             if name != protect:
                 (self._dir / name).unlink(missing_ok=True)
 
