@@ -32,6 +32,13 @@ filename_re = re.compile(
 )
 
 
+# affinity key for config requests from clients that send none
+_DEFAULT_CONFIG_KEY = "default"
+
+# invented version.bin served by the mock dashcam
+_VERSION_BIN = b"[firmware]\nversion = 1.000\nmodel = DR000 Mock\n"
+
+
 @dataclass(frozen=True)
 class Recording:
     """represents a recording: filename and metadata"""
@@ -90,6 +97,7 @@ class MockDashcam:
         self._sessions_lock = threading.RLock()
         self._recordings_by_session: defaultdict[str, list[str]] = defaultdict(list)
         self._download_errors_by_session: defaultdict[str, set[str]] = defaultdict(set)
+        self._config_by_session: dict[str, bytes] = {}
 
         # sets up routes
         self._setup_routes()
@@ -122,6 +130,10 @@ class MockDashcam:
         """thread-safe write access to session-specific download errors"""
         with self._sessions_lock:
             self._download_errors_by_session[affinity_key] = filenames
+
+    def _config_key(self) -> str:
+        """returns the affinity key, or a shared default for clients without one"""
+        return flask.request.headers.get("X-Affinity-Key") or _DEFAULT_CONFIG_KEY
 
     def _setup_routes(self) -> None:
         """sets up flask routes"""
@@ -258,6 +270,44 @@ class MockDashcam:
 
             return response, 201
 
+        @self.app.route("/mock/config", methods=["POST"])
+        def set_config() -> tuple[dict[str, Any], int]:
+            """seeds the config.ini served by the dashcam"""
+            logger.debug("POST /mock/config")
+            data = flask.request.get_data()
+            with self._sessions_lock:
+                self._config_by_session[self._config_key()] = data
+            return {"size": len(data)}, 201
+
+        @self.app.route("/Config/config.ini", methods=["GET"])
+        def config_ini() -> flask.Response:
+            """serves the seeded config.ini"""
+            logger.debug("GET /Config/config.ini")
+            with self._sessions_lock:
+                data = self._config_by_session.get(self._config_key())
+            if data is None:
+                flask.abort(404)
+            return flask.Response(data, mimetype="application/octet-stream")
+
+        @self.app.route("/Config/version.bin", methods=["GET"])
+        def version_bin() -> flask.Response:
+            """serves an invented version.bin"""
+            logger.debug("GET /Config/version.bin")
+            return flask.Response(_VERSION_BIN, mimetype="application/octet-stream")
+
+        @self.app.route("/upload.cgi", methods=["POST"])
+        def upload_cgi() -> tuple[str, int]:
+            """stores an uploaded config.ini like the camera does"""
+            logger.debug("POST /upload.cgi")
+            if flask.request.form.get("FileType") != "config":
+                flask.abort(400, description="FileType=config is required")
+            uploaded = flask.request.files.get("FileData")
+            if uploaded is None:
+                flask.abort(400, description="FileData is required")
+            with self._sessions_lock:
+                self._config_by_session[self._config_key()] = uploaded.read()
+            return "OK", 200
+
         @self.app.route("/mock/downloads/errors", methods=["DELETE"])
         def clear_download_errors_route() -> tuple[dict[str, str], int]:
             """clears download errors for the session"""
@@ -331,6 +381,9 @@ class MockDashcam:
             if affinity_key:
                 self._recordings_by_session[affinity_key] = []
                 self._download_errors_by_session[affinity_key] = set()
+                self._config_by_session.pop(affinity_key, None)
+                self._config_by_session.pop(_DEFAULT_CONFIG_KEY, None)
             else:
                 self._recordings_by_session.clear()
                 self._download_errors_by_session.clear()
+                self._config_by_session.clear()
