@@ -10,14 +10,15 @@ from __future__ import annotations
 import dataclasses
 import re
 
-from blackvuesync_v2.server.camera_config import CameraFile, safe_text
+from blackvuesync_v2.server.camera_config import CONTROL_RE, CameraFile, safe_text
 from blackvuesync_v2.server.camera_crypto import encrypt_password
 
 MASK = "•" * 8
 
 _ASCII_INT_RE = re.compile(r"-?[0-9]+")
 _ASCII_HOUR_RE = re.compile(r"[0-9]{1,2}")
-_ASCII_OFFSET_RE = re.compile(r"-?[0-9]{1,4}")
+_ASCII_OFFSET_RE = re.compile(r"[+-]?[0-9]{1,4}")
+_ASCII_TIME_RE = re.compile(r"[0-9]{4}")
 
 
 def _is_password_key(key: str) -> bool:
@@ -134,9 +135,17 @@ _FIELDS: tuple[CameraField, ...] = (
         formats_card=True,
         help="24-hour HHMM, used when the time source is manual",
     ),
-    CameraField("Tab1", "TimeZone", "Time zone", "select", formats_card=True),
+    CameraField(
+        "Tab1",
+        "TimeZone",
+        "Time zone",
+        "text",
+        formats_card=True,
+        help="UTC offset as HHMM, like 1000 or -1100; minutes 00, 30 or 45",
+    ),
     _t("Tab1", "Daylight", "Daylight saving time", formats_card=True),
     _t("Tab1", "GpsSync", "Sync time with GPS", formats_card=True),
+    # minimum and maximum stay unset: the firmware's range is uncalibrated
     _n(
         "Tab1",
         "ImageSetting",
@@ -459,18 +468,25 @@ def build_tabs(cfile: CameraFile) -> list[TabView]:
 FORMAT_KEYS: frozenset[tuple[str, str]] = frozenset(
     (f.section, f.key) for f in _FIELDS if f.formats_card
 )
-# also the separators str.splitlines() splits on (next line, line, paragraph)
-_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f\x85\u2028\u2029]")
 _INT_RE = re.compile(r"-?[0-9]{1,6}")
 _TEXT_LIMITS = {("Tab3", "userString"): 20}
 
 
 def _valid_offset(value: str) -> bool:
-    """returns whether value is a signed HHMM utc offset."""
-    return value == "0" or (
-        _ASCII_OFFSET_RE.fullmatch(value) is not None
-        and format_utc_offset(value) != value
-    )
+    """returns whether value is a utc offset in HHMM (-1200 to +1400, :00/:30/:45)."""
+    if not _ASCII_OFFSET_RE.fullmatch(value):
+        return False
+    number = int(value)
+    return -1200 <= number <= 1400 and abs(number) % 100 in (0, 30, 45)
+
+
+def _valid_clock(value: str) -> bool:
+    """returns whether value is an empty or a 24-hour HHMM time."""
+    if value == "":
+        return True
+    if not _ASCII_TIME_RE.fullmatch(value):
+        return False
+    return int(value[:2]) <= 23 and int(value[2:]) <= 59
 
 
 def validate_change(  # pylint: disable=too-many-return-statements,too-many-branches
@@ -478,7 +494,7 @@ def validate_change(  # pylint: disable=too-many-return-statements,too-many-bran
 ) -> list[str]:
     """returns the problems with setting section.key to value (empty = ok)."""
     name = f"{section}.{key}"
-    if _CONTROL_RE.search(value):
+    if CONTROL_RE.search(value):
         return [f"{name}: control characters are not allowed"]
     field = field_for(section, key)
     if field.read_only:
@@ -495,6 +511,10 @@ def validate_change(  # pylint: disable=too-many-return-statements,too-many-bran
         if _valid_offset(value):
             return []
         return [f"{name}: must be a UTC offset like 1000 or -1100"]
+    if field.key == "SetTime":
+        if _valid_clock(value):
+            return []
+        return [f"{name}: must be a 24-hour time like 0930"]
     if field.widget == "select":
         allowed = [raw for raw, _label in field.options]
         return [] if value in allowed else [f"{name}: not one of {', '.join(allowed)}"]

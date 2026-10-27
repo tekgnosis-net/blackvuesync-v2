@@ -88,13 +88,12 @@ def _stage(page: Page, tab: str, key: str, value: str) -> None:
 
 
 def _stage_timezone(page: Page) -> None:
-    page.locator('[data-section-nav="camera-basic"]').click()
+    """stages an offset that differs from the fixture's 1000 and proves it took."""
+    _stage(page, "basic", "Tab1.TimeZone", "0930")
     control = page.locator('[data-camera-key="Tab1.TimeZone"]')
-    control.select_option(
-        control.evaluate(
-            "el => [...el.options].map(o => o.value)"
-            ".find(v => v !== el.dataset.original)"
-        )
+    expect(control).to_have_value("0930")
+    expect(page.locator("#camera-apply-bar [data-camera-count]")).to_have_text(
+        "1 change"
     )
 
 

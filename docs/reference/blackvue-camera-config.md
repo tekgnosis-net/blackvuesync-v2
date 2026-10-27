@@ -20,6 +20,11 @@ setting at a time in the BlackVue app and diffing `config.ini`.
 | `Tab3.LowvoltageVolt`, `Tab3.LowvoltageVoltHeavy` | volts x 100 (1180 = 11.8 V) |
 | `Wifi.WiFiBand` | 0 = 5 GHz, 1 = 2.4 GHz |
 
+`Tab1.TimeZone` is a signed HHMM offset from UTC (the fixture holds `1000`). The
+firmware's own list was never calibrated, so the settings page does not
+enumerate one: it validates the text instead (-1200 to +1400, minutes 00, 30
+or 45). `Tab1.SetTime` is a 24-hour `HHMM` time.
+
 ## Endpoints
 
 - `GET /Config/config.ini` and `GET /Config/version.bin` need no

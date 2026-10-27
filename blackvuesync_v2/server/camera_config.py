@@ -273,7 +273,7 @@ class SelfCheckError(PatchError):
     """the patched file differs from the original beyond the requested keys."""
 
 
-_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f\x85\u2028\u2029]")
+CONTROL_RE = re.compile(r"[\x00-\x1f\x7f\x85\u2028\u2029]")
 
 
 def patch(raw: bytes, changes: dict[tuple[str, str], str]) -> bytes:
@@ -283,7 +283,7 @@ def patch(raw: bytes, changes: dict[tuple[str, str], str]) -> bytes:
     does a value with control characters (which could inject lines).
     """
     for (section, key), value in changes.items():
-        if _CONTROL_RE.search(value):
+        if CONTROL_RE.search(value):
             raise PatchError(f"{section}.{key}: value contains control characters")
     pending = dict(changes)
     seen: set[tuple[str, str]] = set()
@@ -459,6 +459,7 @@ class BackupStore:
 
 
 __all__ = [
+    "CONTROL_RE",
     "GENERAL_SECTION",
     "BACKUP_NAME_RE",
     "BackupInfo",

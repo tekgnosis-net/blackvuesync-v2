@@ -232,11 +232,18 @@ def test_validate_change_by_widget() -> None:
     assert validate_change("Tab3", "ScheduledRebootTime", "24") == [
         "Tab3.ScheduledRebootTime: must be an hour from 0 to 23"
     ]
-    for ok in ("930", "0", "-1100", "1000"):
+    for ok in ("930", "0", "-1100", "1000", "+1000", "1245", "-1200", "1400", "0930"):
         assert validate_change("Tab1", "TimeZone", ok) == []
-    assert validate_change("Tab1", "TimeZone", "1070") == [
-        "Tab1.TimeZone: must be a UTC offset like 1000 or -1100"
-    ]
+    for bad in ("1070", "9900", "1500", "-1300", "1015", "abc", "", "10000"):
+        assert validate_change("Tab1", "TimeZone", bad) == [
+            "Tab1.TimeZone: must be a UTC offset like 1000 or -1100"
+        ], bad
+    assert validate_change("Tab1", "SetTime", "2359") == []
+    for bad in ("2400", "1260", "12", "abcd"):
+        assert validate_change("Tab1", "SetTime", bad) == [
+            "Tab1.SetTime: must be a 24-hour time like 0930"
+        ], bad
+    assert validate_change("Tab1", "SetTime", "") == []
     assert validate_change("Tab1", "RecordTime", "2") == ["Tab1.RecordTime: read-only"]
     assert validate_change("Cloud", "sta_ssid", "x" * 33) == [
         "Cloud.sta_ssid: at most 32 bytes"
