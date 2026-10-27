@@ -193,3 +193,34 @@ def apply_changes(
                 409, "SYNC_RUNNING", "a sync is running; try again when it finishes"
             )
         return _apply(store, settings, changes, confirm_format, accept_loss)
+
+
+def restore_backup(
+    store: SettingsStore, name: str, confirm_format: bool, accept_loss: bool = False
+) -> ApplyResult:
+    """uploads a backup by applying its differences to the camera's current file."""
+    backups = BackupStore(store.path.parent / "camera" / "backups")
+    raw = backups.read(name)
+    if raw is None:
+        raise ApplyRefused(404, "NO_SUCH_BACKUP", "no such backup")
+    settings = store.get()
+    with try_hold_sync_lock() as held:
+        if not held:
+            raise ApplyRefused(
+                409, "SYNC_RUNNING", "a sync is running; try again when it finishes"
+            )
+        fresh = camera_config.fetch(
+            settings.connection.address, settings.camera.read_timeout_seconds
+        )
+        if fresh is None:
+            raise ApplyRefused(409, "CAMERA_OFFLINE", "the camera is not reachable")
+        changes = {
+            (c.section, c.key): c.after
+            for c in camera_config.diff(fresh.config, camera_config.parse(raw))
+            if c.after is not None and c.before is not None
+        }
+        if not changes:
+            raise ApplyRefused(
+                422, "NO_CHANGES", "the camera already has these settings"
+            )
+        return _apply(store, settings, changes, confirm_format, accept_loss)

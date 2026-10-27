@@ -287,3 +287,87 @@ def test_format_confirmations_must_be_json_true(client: Any, apply_camera: Any) 
     assert resp.status_code == 409
     assert resp.get_json()["code"] == "FORMAT_CONFIRMATION_REQUIRED"
     assert apply_camera.uploads == []
+
+
+def _save_backup(client: Any, changes: dict[tuple[str, str], str], when: str) -> str:
+    import datetime
+
+    store = client.application.settings_store
+    return camera_config.BackupStore(store.path.parent / "camera" / "backups").save(
+        camera_config.patch(CONFIG, changes), datetime.datetime.fromisoformat(when)
+    )
+
+
+def test_backups_list_newest_first_with_iso_created(client: Any) -> None:
+    older = _save_backup(client, {("Tab3", "VOLUME"): "2"}, "2026-10-01T10:00:00+00:00")
+    newer = _save_backup(client, {("Tab3", "VOLUME"): "3"}, "2026-10-02T10:00:00+00:00")
+    base = client.application.settings_store.path.parent / "camera" / "backups"
+    os.utime(base / older, (1_000_000, 1_000_000))
+    os.utime(base / newer, (2_000_000, 2_000_000))
+    resp = client.get("/api/camera/backups")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert [b["name"] for b in data] == [newer, older]
+    assert data[0]["created"] == "1970-01-24T03:33:20+00:00"
+    assert isinstance(data[0]["size"], int)
+
+
+def test_restore_route(client: Any, apply_camera: Any) -> None:
+    name = _save_backup(client, {("Tab3", "VOLUME"): "2"}, "2026-10-01T10:00:00+00:00")
+    cur = camera_config.parse(CONFIG).value("Tab3", "VOLUME")
+    if cur == "2":
+        name = _save_backup(
+            client, {("Tab3", "VOLUME"): "3"}, "2026-10-01T10:00:05+00:00"
+        )
+    resp = client.post(f"/api/camera/backups/{name}/restore", json={})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["verified"] is True and data["changed"] == ["Tab3.VOLUME"]
+    assert len(apply_camera.uploads) == 1
+    resp = client.post(f"/api/camera/backups/{name}/restore", json={})
+    assert (resp.status_code, resp.get_json()["code"]) == (422, "NO_CHANGES")
+
+
+def test_restore_route_format_gate(client: Any, apply_camera: Any) -> None:
+    apply_camera.vod = ["20261027_210000_NF.mp4"]
+    name = _save_backup(
+        client, {("Tab1", "TimeZone"): "1100"}, "2026-10-01T10:00:00+00:00"
+    )
+    url = f"/api/camera/backups/{name}/restore"
+    for body in (
+        {},
+        {"confirm_format": True},
+        {"confirm_format": "true", "accept_loss": True},
+    ):
+        resp = client.post(url, json=body)
+        assert resp.status_code == 409
+        data = resp.get_json()
+        assert (data["code"], data["pending"]) == ("FORMAT_CONFIRMATION_REQUIRED", 1)
+    assert apply_camera.uploads == []
+    resp = client.post(url, json={"confirm_format": True, "accept_loss": True})
+    assert resp.status_code == 200 and len(apply_camera.uploads) == 1
+
+
+def test_restore_route_unknown_and_malformed_names(
+    client: Any, apply_camera: Any
+) -> None:
+    for name in ("config-20260101-000000.ini", "nope.ini", "..%2Fsettings.json"):
+        resp = client.post(f"/api/camera/backups/{name}/restore", json={})
+        assert resp.status_code == 404
+    resp = client.post("/api/camera/backups/nope.ini/restore", json={})
+    assert resp.get_json()["code"] == "NO_SUCH_BACKUP"
+
+
+def test_backups_require_login(tmp_path: Path) -> None:
+    with patch.dict(os.environ, {"ADDRESS": "192.0.2.10"}, clear=False):
+        store = SettingsStore(tmp_path / "settings.json")
+    pw_hash = hash_password("pw-1234-test")
+    store.update(
+        lambda s: dataclasses.replace(
+            s, auth=dataclasses.replace(s.auth, password_hash=pw_hash)
+        )
+    )
+    anon = create_app(store, testing=True).test_client()
+    assert anon.get("/api/camera/backups").status_code == 401
+    resp = anon.post("/api/camera/backups/config-20260101-000000.ini/restore", json={})
+    assert resp.status_code == 401

@@ -302,3 +302,60 @@ def test_refused_patch_keeps_the_existing_backup(
     assert e.value.status == 422
     assert [b.name for b in backups.list()] == before
     assert backups.read(before[0]) == CONFIG
+
+
+def _backup(store: SettingsStore, changes: dict[tuple[str, str], str]) -> str:
+    raw = camera_config.patch(CONFIG, changes)
+    return camera_config.BackupStore(store.path.parent / "camera" / "backups").save(raw)
+
+
+def test_restore_uploads_only_the_differences(
+    store: SettingsStore, camera: FakeCamera
+) -> None:
+    current = camera_config.parse(CONFIG).value("Tab3", "VOLUME")
+    other = "2" if current != "2" else "3"
+    name = _backup(store, {("Tab3", "VOLUME"): other})
+    result = camera_apply.restore_backup(store, name, False)
+    assert result.verified and result.changed == ["Tab3.VOLUME"]
+    assert len(camera.uploads) == 1
+    assert camera_config.parse(camera.config).value("Tab3", "VOLUME") == other
+
+
+def test_restore_honours_the_format_gate(
+    store: SettingsStore, camera: FakeCamera
+) -> None:
+    camera.vod = ["20261027_210000_NF.mp4"]
+    name = _backup(store, {("Tab1", "TimeZone"): "1100"})
+    with pytest.raises(camera_apply.ApplyRefused) as e:
+        camera_apply.restore_backup(store, name, True, False)
+    assert (e.value.status, e.value.code, e.value.detail) == (
+        409,
+        "FORMAT_CONFIRMATION_REQUIRED",
+        {"pending": 1},
+    )
+    assert camera.uploads == []
+    result = camera_apply.restore_backup(store, name, True, True)
+    assert result.verified and len(camera.uploads) == 1
+
+
+@pytest.mark.parametrize(
+    "name", ["config-x.ini", "../settings.json", "", "config-20260101-000000.ini"]
+)  # type: ignore[misc]
+def test_restore_unknown_or_malformed_name_is_404(
+    store: SettingsStore, camera: FakeCamera, name: str
+) -> None:
+    with pytest.raises(camera_apply.ApplyRefused) as e:
+        camera_apply.restore_backup(store, name, True, True)
+    assert (e.value.status, e.value.code) == (404, "NO_SUCH_BACKUP")
+
+
+def test_restore_identical_backup_is_no_changes(
+    store: SettingsStore, camera: FakeCamera
+) -> None:
+    name = camera_config.BackupStore(store.path.parent / "camera" / "backups").save(
+        CONFIG
+    )
+    with pytest.raises(camera_apply.ApplyRefused) as e:
+        camera_apply.restore_backup(store, name, False)
+    assert (e.value.status, e.value.code) == (422, "NO_CHANGES")
+    assert camera.uploads == []

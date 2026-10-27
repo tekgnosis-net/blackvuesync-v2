@@ -18,8 +18,10 @@ from blackvuesync_v2.server.camera_apply import (
     ApplyRefused,
     apply_changes,
     pending_recordings,
+    restore_backup,
 )
 from blackvuesync_v2.server.camera_config import (
+    BackupStore,
     CameraRead,
     CameraStore,
     Change,
@@ -178,6 +180,47 @@ def apply() -> Response:
         result = apply_changes(
             store,
             raw,
+            body.get("confirm_format") is True,
+            body.get("accept_loss") is True,
+        )
+    except ApplyRefused as refused:
+        return _json(
+            {"code": refused.code, "error": str(refused), **refused.detail},
+            refused.status,
+        )
+    return _json(dataclasses.asdict(result))
+
+
+@api_camera_bp.route("/backups", methods=["GET"])
+@login_required
+def backups() -> Response:
+    """lists the saved config.ini copies, newest first."""
+    store: SettingsStore = current_app.settings_store  # type: ignore[attr-defined]
+    listing = BackupStore(store.path.parent / "camera" / "backups").list()
+    return _json(
+        [
+            {
+                "name": info.name,
+                "created": info.created.isoformat(),
+                "size": info.size,
+            }
+            for info in listing
+        ]
+    )
+
+
+@api_camera_bp.route("/backups/<name>/restore", methods=["POST"])
+@login_required
+def restore(name: str) -> Response:
+    """restores a backup by applying its differences to the camera."""
+    store: SettingsStore = current_app.settings_store  # type: ignore[attr-defined]
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        body = {}
+    try:
+        result = restore_backup(
+            store,
+            name,
             body.get("confirm_format") is True,
             body.get("accept_loss") is True,
         )
