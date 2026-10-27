@@ -270,6 +270,8 @@ application, structured as follows:
   `schedule.cron_expression` in `schedule.timezone`; honors `schedule.paused`.
 - `log_buffer.py` -- ring-buffer logging handler behind the `/logs` page; unlike
   the progress publisher it delivers every line (batches, not latest-wins).
+  Each `LogLine` carries `ts` (UTC ISO, the dedup key) and `time` (process
+  local time per `TZ`); the page displays `time` and never raw UTC.
 - `stats_store.py` -- SQLite store of one row per sync run, pruned by
   `stats.retention_days`. `RunRow.unreachable` is the single "car away" rule
   (failed, and every non-zero failure reason is in `UNREACHABLE_REASONS` =

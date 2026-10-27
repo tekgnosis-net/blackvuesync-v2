@@ -6,6 +6,8 @@ import logging
 import threading
 import time
 
+import pytest
+
 from blackvuesync_v2.server.log_buffer import LogBuffer, LogLine, verbosity_token
 
 
@@ -28,6 +30,31 @@ def test_emit_then_snapshot_returns_logline() -> None:
     assert ln.logger == "blackvuesync"
     assert ln.seq == 1
     assert ln.ts.endswith("Z")
+    assert len(ln.time) == 23 and ln.time[10] == " " and ln.time[19] == "."
+
+
+def test_time_is_local_per_tz(monkeypatch: pytest.MonkeyPatch) -> None:
+    """the display time follows the process TZ (what the log file shows)."""
+    import time as _time
+
+    monkeypatch.setenv("TZ", "Australia/Sydney")
+    _time.tzset()
+    try:
+        buf = LogBuffer()
+        expected = {
+            1761561737.186: "2025-10-27 21:42:17.186",  # aedt, utc+11
+            1751000000.5: "2025-06-27 14:53:20.500",  # aest, utc+10
+        }
+        for created in expected:
+            record = _record("tz", logging.INFO, "blackvuesync")
+            record.created = created
+            buf.emit(record)
+        times = [ln.time for ln in buf.snapshot()]
+        assert times == list(expected.values())
+        assert buf.snapshot()[0].ts == "2025-10-27T10:42:17.186Z"
+    finally:
+        monkeypatch.delenv("TZ")
+        _time.tzset()
 
 
 def test_deque_evicts_oldest_beyond_capacity() -> None:

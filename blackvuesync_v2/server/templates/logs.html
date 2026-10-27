@@ -33,7 +33,7 @@
   <div class="logs-pane" data-pane>
     {% for ln in lines %}
     <div class="log-row" data-level="{{ ln.level }}" data-level-no="{{ ln.level_no }}" data-seq="{{ ln.seq }}">
-      <span class="log-ts">{{ ln.ts }}</span>
+      <time class="log-ts" datetime="{{ ln.ts }}" title="{{ ln.ts }}">{{ ln.time }}</time>
       <span class="log-level log-level-{{ ln.level }}">{{ ln.level }}</span>
       <span class="log-logger">{{ ln.logger }}</span>
       <span class="log-msg">{{ ln.message }}</span>
