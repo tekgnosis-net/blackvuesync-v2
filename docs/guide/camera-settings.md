@@ -117,7 +117,9 @@ differ from the camera's current file, and goes through the same backup,
 upload and verify steps (so a restore is itself backed up and can be undone).
 A backup that differs in time or image-quality settings brings the card
 warning with it. A backup identical to the camera's current settings is
-refused: there is nothing to restore.
+refused: there is nothing to restore. Read-only keys (such as the cloud
+settings version) are never restored, and a restore differing only in
+those counts as nothing to restore.
 
 ## If the camera does not come back
 

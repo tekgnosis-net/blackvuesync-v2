@@ -618,9 +618,24 @@ Lists the saved copies of `config.ini`, newest first:
   "created": "2026-10-27T00:15:00+00:00", "size": 5120}]
 ```
 
+### `GET /api/camera/backups/<name>`
+
+Previews a restore: reads the camera's file now and lists what restoring the
+backup would change, in the shape of the `changed` list of `GET
+/api/camera/config`. Passwords show only `"changed"`. Read-only keys never
+restore, so they are not listed. Nothing is written.
+
+```json
+{"changes": [{"key": "Tab3.VOLUME", "label": "Volume", "from": "4", "to": "2"}]}
+```
+
+404 `NO_SUCH_BACKUP` for an unknown or malformed name; 409 `CAMERA_OFFLINE`
+when the camera cannot be read. The restore dialog fills its table from this.
+
 ### `POST /api/camera/backups/<name>/restore`
 
-Applies the differences between a backup and the camera's current file, with
+Applies the differences between a backup and the camera's current file (read-only
+keys excluded), with
 the same pipeline and the same response as `POST /api/camera/config`. The
 optional body takes `confirm_format` and `accept_loss`. Errors are those
 above (there is no `changes` to validate), plus 404 `NO_SUCH_BACKUP`; 422

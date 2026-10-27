@@ -371,3 +371,51 @@ def test_backups_require_login(tmp_path: Path) -> None:
     assert anon.get("/api/camera/backups").status_code == 401
     resp = anon.post("/api/camera/backups/config-20260101-000000.ini/restore", json={})
     assert resp.status_code == 401
+
+
+def test_backup_preview_lists_the_differences(client: Any, apply_camera: Any) -> None:
+    current = camera_config.parse(CONFIG).value("Tab3", "VOLUME")
+    other = "2" if current != "2" else "3"
+    name = _save_backup(
+        client,
+        {
+            ("Tab3", "VOLUME"): other,
+            ("Cloud", "CloudSettingVersion"): "2020-01-01 00:00:00",
+            ("Wifi", "ap_pw"): "abcdef0123456789abcdef01",
+        },
+        "2026-10-01T10:00:00+00:00",
+    )
+    resp = client.get(f"/api/camera/backups/{name}")
+    assert resp.status_code == 200
+    rows = {row["key"]: row for row in resp.get_json()["changes"]}
+    assert set(rows) == {"Tab3.VOLUME", "Wifi.ap_pw"}
+    assert (rows["Tab3.VOLUME"]["from"], rows["Tab3.VOLUME"]["to"]) == (current, other)
+    assert rows["Tab3.VOLUME"]["label"]
+    assert (rows["Wifi.ap_pw"]["from"], rows["Wifi.ap_pw"]["to"]) == (
+        "changed",
+        "changed",
+    )
+    assert "abcdef0123456789abcdef01" not in resp.get_data(as_text=True)
+    assert apply_camera.uploads == []
+
+
+def test_backup_preview_errors(client: Any, apply_camera: Any) -> None:
+    resp = client.get("/api/camera/backups/nope.ini")
+    assert (resp.status_code, resp.get_json()["code"]) == (404, "NO_SUCH_BACKUP")
+    name = _save_backup(client, {("Tab3", "VOLUME"): "2"}, "2026-10-01T10:00:00+00:00")
+    apply_camera.offline_reads = 5
+    resp = client.get(f"/api/camera/backups/{name}")
+    assert (resp.status_code, resp.get_json()["code"]) == (409, "CAMERA_OFFLINE")
+
+
+def test_backup_preview_requires_login(tmp_path: Path) -> None:
+    with patch.dict(os.environ, {"ADDRESS": "192.0.2.10"}, clear=False):
+        store = SettingsStore(tmp_path / "settings.json")
+    pw_hash = hash_password("pw-1234-test")
+    store.update(
+        lambda s: dataclasses.replace(
+            s, auth=dataclasses.replace(s.auth, password_hash=pw_hash)
+        )
+    )
+    anon = create_app(store, testing=True).test_client()
+    assert anon.get("/api/camera/backups/config-20260101-000000.ini").status_code == 401

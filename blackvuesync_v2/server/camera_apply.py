@@ -14,6 +14,7 @@ from blackvuesync_v2.server import camera_config
 from blackvuesync_v2.server.camera_config import BackupStore, CameraStore
 from blackvuesync_v2.server.camera_schema import (
     FORMAT_KEYS,
+    field_for,
     is_secret,
     prepare_changes,
 )
@@ -195,13 +196,36 @@ def apply_changes(
         return _apply(store, settings, changes, confirm_format, accept_loss)
 
 
+def restore_diff(
+    store: SettingsStore, name: str, settings: Settings
+) -> list[camera_config.Change]:
+    """returns what restoring name would change on the camera's current file.
+
+    read-only keys never restore; keys only one side has are skipped.
+    """
+    backups = BackupStore(store.path.parent / "camera" / "backups")
+    raw = backups.read(name)
+    if raw is None:
+        raise ApplyRefused(404, "NO_SUCH_BACKUP", "no such backup")
+    fresh = camera_config.fetch(
+        settings.connection.address, settings.camera.read_timeout_seconds
+    )
+    if fresh is None:
+        raise ApplyRefused(409, "CAMERA_OFFLINE", "the camera is not reachable")
+    return [
+        c
+        for c in camera_config.diff(fresh.config, camera_config.parse(raw))
+        if c.after is not None
+        and c.before is not None
+        and not field_for(c.section, c.key).read_only
+    ]
+
+
 def restore_backup(
     store: SettingsStore, name: str, confirm_format: bool, accept_loss: bool = False
 ) -> ApplyResult:
     """uploads a backup by applying its differences to the camera's current file."""
-    backups = BackupStore(store.path.parent / "camera" / "backups")
-    raw = backups.read(name)
-    if raw is None:
+    if BackupStore(store.path.parent / "camera" / "backups").read(name) is None:
         raise ApplyRefused(404, "NO_SUCH_BACKUP", "no such backup")
     settings = store.get()
     with try_hold_sync_lock() as held:
@@ -209,15 +233,10 @@ def restore_backup(
             raise ApplyRefused(
                 409, "SYNC_RUNNING", "a sync is running; try again when it finishes"
             )
-        fresh = camera_config.fetch(
-            settings.connection.address, settings.camera.read_timeout_seconds
-        )
-        if fresh is None:
-            raise ApplyRefused(409, "CAMERA_OFFLINE", "the camera is not reachable")
         changes = {
             (c.section, c.key): c.after
-            for c in camera_config.diff(fresh.config, camera_config.parse(raw))
-            if c.after is not None and c.before is not None
+            for c in restore_diff(store, name, settings)
+            if c.after is not None
         }
         if not changes:
             raise ApplyRefused(

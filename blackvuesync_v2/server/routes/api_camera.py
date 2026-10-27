@@ -19,6 +19,7 @@ from blackvuesync_v2.server.camera_apply import (
     apply_changes,
     pending_recordings,
     restore_backup,
+    restore_diff,
 )
 from blackvuesync_v2.server.camera_config import (
     BackupStore,
@@ -207,6 +208,21 @@ def backups() -> Response:
             for info in listing
         ]
     )
+
+
+@api_camera_bp.route("/backups/<name>", methods=["GET"])
+@login_required
+def backup_preview(name: str) -> Response:
+    """lists what restoring a backup would change on the camera right now."""
+    store: SettingsStore = current_app.settings_store  # type: ignore[attr-defined]
+    try:
+        changes = restore_diff(store, name, store.get())
+    except ApplyRefused as refused:
+        return _json(
+            {"code": refused.code, "error": str(refused), **refused.detail},
+            refused.status,
+        )
+    return _json({"changes": change_views(tuple(changes))})
 
 
 @api_camera_bp.route("/backups/<name>/restore", methods=["POST"])

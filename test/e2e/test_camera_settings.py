@@ -196,6 +196,10 @@ def test_backups_pane_lists_and_restores(
     dialog = page.locator("#camera-review")
     expect(dialog.locator("[data-review-title]")).to_contain_text(".ini")
     expect(dialog).to_have_attribute("data-state", "ready")
+    # the table lists the key the backup would change back
+    expect(dialog.locator("[data-review-rows] tr")).to_have_count(1)
+    expect(dialog.locator("[data-review-rows] tr").first).to_contain_text("Volume")
+    expect(dialog.locator("[data-review-rows] tr").first).to_contain_text("4")
     dialog.locator("[data-review-apply]").click()
     expect(dialog).to_have_attribute("data-state", "done")
     expect(dialog.locator("[data-review-result]")).to_contain_text("Applied")

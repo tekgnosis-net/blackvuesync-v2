@@ -245,19 +245,12 @@ document.addEventListener("alpine:init", () => {
       this.setReviewText("data-review-title", "Review changes");
       const rows = this.reviewPart("data-review-rows");
       staged.controls.forEach((el) => {
-        const tr = document.createElement("tr");
         const secret = el.dataset.secret === "1";
-        const cells = [
+        this.appendReviewRow(rows, [
           el.dataset.cameraLabel,
           secret ? "" : this.displayValue(el, el.dataset.original),
           secret ? "changed" : this.displayValue(el, this.controlValue(el)),
-        ];
-        cells.forEach((text) => {
-          const td = document.createElement("td");
-          td.textContent = text;
-          tr.appendChild(td);
-        });
-        rows.appendChild(tr);
+        ]);
       });
       this.reviewPart("data-review-table").hidden = false;
       const keys = Object.keys(staged.changes);
@@ -270,10 +263,44 @@ document.addEventListener("alpine:init", () => {
       this.syncApply();
     },
 
+    appendReviewRow(rows, cells) {
+      const tr = document.createElement("tr");
+      cells.forEach((text) => {
+        const td = document.createElement("td");
+        td.textContent = text;
+        tr.appendChild(td);
+      });
+      rows.appendChild(tr);
+    },
+
+    // the differences between the camera's file now and a backup; null when
+    // the request fails (the reason is shown in the dialog).
+    async fetchRestorePreview(name) {
+      let resp;
+      try {
+        resp = await fetch("/api/camera/backups/" + encodeURIComponent(name), {
+          headers: { Accept: "application/json" },
+        });
+      } catch {
+        return { error: "network error; please retry" };
+      }
+      const data = await readJson(resp);
+      if (isAuthFailure(resp, data)) {
+        redirectToLogin();
+        return { error: "" };
+      }
+      if (resp.status === 200 && data && Array.isArray(data.changes)) {
+        return { changes: data.changes };
+      }
+      return { error: failureText(resp, data) };
+    },
+
     async openRestoreReview(name) {
       this.resetReview();
-      this.review.kind = "restore";
-      this.review.name = name;
+      const review = this.review;
+      review.kind = "restore";
+      review.name = name;
+      review.checking = true;
       this.setReviewText("data-review-title", "Restore " + name);
       this.setReviewText(
         "data-review-progress",
@@ -282,8 +309,33 @@ document.addEventListener("alpine:init", () => {
           "the camera format its card."
       );
       this.showReview();
+      const preview = await this.fetchRestorePreview(name);
+      if (this.review !== review) return;
+      if (!preview.changes) {
+        review.checking = false;
+        review.done = true;
+        const result = this.reviewPart("data-review-result");
+        result.classList.add("is-error");
+        result.textContent = preview.error;
+        result.hidden = false;
+        this.reviewPart("data-review-cancel").textContent = "Close";
+        this.syncApply();
+        return;
+      }
+      const rows = this.reviewPart("data-review-rows");
+      preview.changes.forEach((c) => this.appendReviewRow(rows, [c.label, c.from, c.to]));
+      this.reviewPart("data-review-table").hidden = preview.changes.length === 0;
+      this.reviewPart("data-review-wifi").hidden = !preview.changes.some(
+        (c) => c.key.startsWith("Wifi.") || c.key.startsWith("Cloud.")
+      );
+      const formats = preview.changes.some((c) => {
+        const el = this.$root.querySelector(
+          `#camera-panes [data-camera-key="${CSS.escape(c.key)}"]`
+        );
+        return el && el.dataset.formatsCard === "1";
+      });
       // a restore can change format keys, so the loss check always runs
-      await this.checkPending(false);
+      await this.checkPending(formats);
       this.syncApply();
     },
 
@@ -298,21 +350,23 @@ document.addEventListener("alpine:init", () => {
       this.reviewDialog().close();
     },
 
-    // shows the erase warning and the pending count. force reveals the block
-    // even when nothing is pending; otherwise it appears only when needed.
-    // runs the pending check with Apply held back until it finishes.
+    // asks the camera how many recordings a format change would erase, with
+    // Apply held back until it answers. force reveals the erase block even
+    // when nothing is pending; otherwise it appears only when needed. a check
+    // that finishes after the dialog was reset or reopened changes nothing.
     async checkPending(force) {
-      this.review.checking = true;
+      const review = this.review;
+      review.checking = true;
       this.syncApply();
       try {
-        await this.fetchPending(force);
+        await this.fetchPending(force, review);
       } finally {
-        this.review.checking = false;
-        this.syncApply();
+        review.checking = false;
+        if (this.review === review) this.syncApply();
       }
     },
 
-    async fetchPending(force) {
+    async fetchPending(force, review) {
       if (force) this.reviewPart("data-review-format").hidden = false;
       let pending = null;
       try {
@@ -328,6 +382,7 @@ document.addEventListener("alpine:init", () => {
       } catch {
         pending = null;
       }
+      if (this.review !== review) return;
       if (pending === null) {
         this.reviewPart("data-review-format").hidden = false;
         this.setReviewText(
@@ -369,12 +424,27 @@ document.addEventListener("alpine:init", () => {
 
     resultText(data) {
       const parts = [];
+      if (data.upload_confirmed === false) {
+        parts.push(
+          "The camera did not acknowledge the upload; the result below is " +
+            "what it reports now."
+        );
+      }
       if (data.verified) {
         parts.push("Applied and verified (backup " + data.backup + ").");
       } else if (data.came_back) {
         parts.push("Applied, but the camera's settings could not be verified (backup " + data.backup + ").");
       } else {
         parts.push("Applied, but the camera has not come back yet (backup " + data.backup + ").");
+        const wifi = (data.changed || []).some(
+          (k) => k.startsWith("Wifi.") || k.startsWith("Cloud.")
+        );
+        if (wifi) {
+          parts.push(
+            "Wi-Fi or cloud settings changed, so it may now be on a different " +
+              "network: check with the BlackVue app."
+          );
+        }
       }
       if (data.kept && data.kept.length > 0) {
         parts.push("The camera kept its own value for: " + data.kept.join(", ") + ".");
@@ -425,6 +495,9 @@ document.addEventListener("alpine:init", () => {
         let text = resp ? failureText(resp, data) : "network error; please retry";
         if (data && Array.isArray(data.errors) && data.errors.length > 0) {
           text += ": " + data.errors.join("; ");
+        }
+        if (data && data.code === "UPLOAD_FAILED") {
+          text += ". Press Refresh to see what the camera holds now";
         }
         if (data && data.code === "FORMAT_CONFIRMATION_REQUIRED") {
           // the server decides which changes erase the card; show the gate
@@ -501,7 +574,15 @@ document.addEventListener("alpine:init", () => {
         const field = this.$root.querySelector(
           `#camera-panes [data-camera-key="${CSS.escape(key)}"]`
         );
-        if (field) field.type = "password";
+        if (field) {
+          field.type = "password";
+          // the revealed value is dropped again unless the user edited it
+          if (field.dataset.revealed !== undefined) {
+            if (field.value === field.dataset.revealed) field.value = "";
+            delete field.dataset.revealed;
+          }
+          this.updateCameraBar();
+        }
         button.setAttribute("aria-pressed", "false");
         button.setAttribute("aria-label", "Show password");
         button.title = "Show password";

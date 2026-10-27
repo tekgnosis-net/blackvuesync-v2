@@ -359,3 +359,52 @@ def test_restore_identical_backup_is_no_changes(
         camera_apply.restore_backup(store, name, False)
     assert (e.value.status, e.value.code) == (422, "NO_CHANGES")
     assert camera.uploads == []
+
+
+def test_restore_skips_read_only_keys(store: SettingsStore, camera: FakeCamera) -> None:
+    current = camera_config.parse(CONFIG).value("Tab3", "VOLUME")
+    other = "2" if current != "2" else "3"
+    name = _backup(
+        store,
+        {
+            ("Cloud", "CloudSettingVersion"): "2020-01-01 00:00:00",
+            ("Tab3", "VOLUME"): other,
+        },
+    )
+    result = camera_apply.restore_backup(store, name, False)
+    assert result.changed == ["Tab3.VOLUME"]
+    new = camera_config.parse(camera.config)
+    assert new.value("Cloud", "CloudSettingVersion") == "2026-01-01 00:00:00"
+
+
+def test_restore_only_read_only_differences_is_no_changes(
+    store: SettingsStore, camera: FakeCamera
+) -> None:
+    name = _backup(store, {("Cloud", "CloudSettingVersion"): "2020-01-01 00:00:00"})
+    with pytest.raises(camera_apply.ApplyRefused) as e:
+        camera_apply.restore_backup(store, name, False)
+    assert (e.value.status, e.value.code) == (422, "NO_CHANGES")
+    assert camera.uploads == []
+
+
+def test_restore_refused_while_a_sync_runs(
+    store: SettingsStore, camera: FakeCamera
+) -> None:
+    name = _backup(store, {("Tab3", "VOLUME"): "2"})
+    with sync_runner.try_hold_sync_lock() as held:
+        assert held
+        with pytest.raises(camera_apply.ApplyRefused) as e:
+            camera_apply.restore_backup(store, name, False)
+    assert (e.value.status, e.value.code) == (409, "SYNC_RUNNING")
+    assert camera.uploads == []
+
+
+def test_restore_refused_when_the_camera_is_offline(
+    store: SettingsStore, camera: FakeCamera
+) -> None:
+    name = _backup(store, {("Tab3", "VOLUME"): "2"})
+    camera.offline_reads = 5
+    with pytest.raises(camera_apply.ApplyRefused) as e:
+        camera_apply.restore_backup(store, name, False)
+    assert (e.value.status, e.value.code) == (409, "CAMERA_OFFLINE")
+    assert camera.uploads == []
