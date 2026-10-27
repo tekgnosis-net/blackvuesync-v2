@@ -43,6 +43,29 @@ def test_reveal_shows_and_hides_one_password(live_server: Any, page: Page) -> No
 
 
 @pytest.mark.usefixtures("fake_camera")
+def test_hiding_a_revealed_password_empties_an_unedited_field(
+    live_server: Any, page: Page
+) -> None:
+    _open_camera_tab(page, live_server.url, "cloud")
+    field = page.locator('[data-camera-key="Cloud.sta_pw"]')
+    button = page.locator('[data-reveal="Cloud.sta_pw"]')
+    button.click()
+    expect(field).to_have_value("DemoHome-123")
+    button.click()
+    expect(field).to_have_value("")
+    expect(page.locator("#camera-apply-bar")).to_be_hidden()
+    # an edited value survives hiding
+    button.click()
+    field.fill("Another-pass-1")
+    field.dispatch_event("change")
+    button.click()
+    expect(field).to_have_value("Another-pass-1")
+    expect(page.locator("#camera-apply-bar [data-camera-count]")).to_have_text(
+        "1 change"
+    )
+
+
+@pytest.mark.usefixtures("fake_camera")
 def test_basic_tab_shows_labels_and_the_format_warning(
     live_server: Any, page: Page
 ) -> None:

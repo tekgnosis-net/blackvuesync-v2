@@ -122,6 +122,14 @@ def test_offline_controls_are_disabled(client: Any, camera: FakeCamera) -> None:
         if "data-camera-key=" in t
     ]
     assert tags and all(" disabled" in t for t in tags)
+    assert 'id="camera-apply-bar"' not in html
+
+
+def test_time_zone_is_a_text_input(client: Any, camera: FakeCamera) -> None:
+    html = client.get("/hx/camera/panes").get_data(as_text=True)
+    tag = _control(html, "Tab1.TimeZone")
+    assert tag.startswith("<input") and 'type="text"' in tag
+    assert 'value="1000"' in tag and 'data-formats-card="1"' in tag
 
 
 def test_settings_page_has_backups_and_review(client: Any, camera: FakeCamera) -> None:

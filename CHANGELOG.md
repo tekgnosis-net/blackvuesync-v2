@@ -32,10 +32,16 @@ Colomba; their numbers refer to upstream pull requests.
   same review.
 * Applying holds the sync lock: a scheduled sync is skipped meanwhile, and
   applying is refused (`SYNC_RUNNING`) while a sync runs.
-* New settings `camera.backup_count`, `camera.verify_timeout_seconds` and
-  `camera.verify_poll_seconds`.
+* New settings `camera.backup_count`, `camera.verify_timeout_seconds`,
+  `camera.verify_poll_seconds` and `camera.upload_timeout_seconds`.
 * New endpoints `GET /api/camera/pending`, `POST /api/camera/config`,
-  `GET /api/camera/backups` and `POST /api/camera/backups/<name>/restore`.
+  `GET /api/camera/backups`, `GET /api/camera/backups/<name>` (a restore
+  preview) and `POST /api/camera/backups/<name>/restore`.
+* A dropped upload answer no longer fails an apply: it continues to the verify
+  step and reports `upload_confirmed: false`. A second apply while one runs is
+  refused with `APPLY_RUNNING`.
+* The time zone is a validated offset text field (-1200 to +1400), and a
+  restore never writes read-only keys.
 
 ## 3.2.2 - 2026-10-27
 
