@@ -242,7 +242,7 @@ def test_restore_with_nothing_to_change_says_so(live_server: Any, page: Page) ->
     page.locator(".camera-backup button[data-restore]").last.click()
     expect(dialog.locator("[data-review-result]")).to_contain_text("Nothing to restore")
     expect(dialog).to_have_attribute("data-state", "done")
-    expect(dialog.locator("[data-review-apply]")).to_be_hidden()
+    expect(dialog.locator("[data-review-apply]")).to_be_disabled()
 
 
 def test_a_dropped_upload_that_did_not_apply_says_so(
