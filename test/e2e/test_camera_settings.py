@@ -54,8 +54,10 @@ def test_hiding_a_revealed_password_empties_an_unedited_field(
     button.click()
     expect(field).to_have_value("")
     expect(page.locator("#camera-apply-bar")).to_be_hidden()
-    # an edited value survives hiding
+    # an edited value survives hiding (the reveal must finish before typing,
+    # or the next click starts a second reveal instead of hiding)
     button.click()
+    expect(field).to_have_value("DemoHome-123")
     field.fill("Another-pass-1")
     field.dispatch_event("change")
     button.click()

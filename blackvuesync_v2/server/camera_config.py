@@ -355,7 +355,10 @@ def _post(url: str, body: bytes, content_type: str, timeout: float) -> int:
             status: int = resp.status
             return status
     except urllib.error.HTTPError as error:
-        error.close()
+        # an HTTPError built without a body (fp None) has nothing to close
+        # and raises on close() before Python 3.10
+        if error.fp is not None:
+            error.close()
         raise UploadError(f"camera answered {error.code}", status=error.code) from error
     except (OSError, ValueError, http.client.HTTPException) as error:
         raise UploadError(f"upload failed: {error}") from error

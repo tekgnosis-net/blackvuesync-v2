@@ -610,6 +610,11 @@ document.addEventListener("alpine:init", () => {
         button.title = "Show password";
         return;
       }
+      const input = this.$root.querySelector(
+        `#camera-panes [data-camera-key="${CSS.escape(key)}"]`
+      );
+      // typing while the secret is still loading must not be overwritten
+      const typedBefore = input ? input.value : "";
       let resp;
       try {
         resp = await fetch("/api/camera/secret?key=" + encodeURIComponent(key), {
@@ -631,12 +636,11 @@ document.addEventListener("alpine:init", () => {
       target.textContent = data.value;
       // an editable password input is filled too; the revealed value is not a
       // change until the user alters it.
-      const input = this.$root.querySelector(
-        `#camera-panes [data-camera-key="${CSS.escape(key)}"]`
-      );
       if (input && !input.disabled) {
-        input.value = data.value;
-        input.dataset.revealed = data.value;
+        if (input.value === typedBefore) {
+          input.value = data.value;
+          input.dataset.revealed = data.value;
+        }
         input.type = "text";
         this.updateCameraBar();
       }
