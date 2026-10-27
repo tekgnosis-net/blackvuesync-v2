@@ -47,6 +47,8 @@ class CameraField:
     read_only: bool = False
     not_fitted: bool = False  # hardware absent on the dr900x plus
     help: str = ""
+    minimum: int | None = None  # inclusive bound for number widgets
+    maximum: int | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -149,7 +151,12 @@ _FIELDS: tuple[CameraField, ...] = (
         formats_card=True,
     ),
     _t("Tab1", "NormalRecord", "Normal recording"),
-    _n("Tab1", "AutoParking", "Parking mode", help="value codes not confirmed yet"),
+    _s(
+        "Tab1",
+        "AutoParking",
+        "Parking mode",
+        (("1", "Motion & Impact detection"), ("2", "Time lapse")),
+    ),
     _t("Tab1", "RearParkingMode", "Rear camera recording in parking mode"),
     _t("Tab1", "VoiceRecord", "Voice recording"),
     _t("Tab1", "DateDisplay", "Date and time display"),
@@ -174,14 +181,32 @@ _FIELDS: tuple[CameraField, ...] = (
     _t("Tab1", "UseGpsInfo", "GPS location recording"),
     # sensitivity ([Tab2])
     *(
-        _n("Tab2", f"NORMALSENSOR{n}", f"G-sensor, normal mode: {axis}")
+        _n(
+            "Tab2",
+            f"NORMALSENSOR{n}",
+            f"G-sensor, normal mode: {axis}",
+            minimum=0,
+            maximum=10,
+        )
         for n, axis in _SENSOR_AXES
     ),
     *(
-        _n("Tab2", f"PARKINGSENSOR{n}", f"G-sensor, parking mode: {axis}")
+        _n(
+            "Tab2",
+            f"PARKINGSENSOR{n}",
+            f"G-sensor, parking mode: {axis}",
+            minimum=0,
+            maximum=10,
+        )
         for n, axis in _SENSOR_AXES
     ),
-    _n("Tab2", "MOTIONSENSOR", "Motion detection, parking mode"),
+    _n(
+        "Tab2",
+        "MOTIONSENSOR",
+        "Motion detection, parking mode",
+        minimum=0,
+        maximum=10,
+    ),
     _n(
         "Tab2",
         "FrontMotionRegion",
@@ -206,10 +231,10 @@ _FIELDS: tuple[CameraField, ...] = (
         "Tab3",
         "PSENSOR",
         "Proximity sensor",
-        (("0", "Voice recording on/off"), ("1", "Manual recording"), ("2", "Off")),
+        (("0", "Off"), ("1", "Manual recording"), ("2", "Voice recording")),
     ),
     *(_t("Tab3", key, f"Voice guidance: {what}") for key, what in _VOICES),
-    _n("Tab3", "VOLUME", "Volume"),
+    _n("Tab3", "VOLUME", "Volume", minimum=0, maximum=10),
     _t("Tab3", "ScheduledReboot", "Scheduled reboot"),
     CameraField("Tab3", "ScheduledRebootTime", "Scheduled reboot time", "hour"),
     _n(
@@ -218,7 +243,12 @@ _FIELDS: tuple[CameraField, ...] = (
         "Speed alert unit",
         help="value codes not confirmed yet",
     ),
-    _n("Tab3", "AlertLimit", "Speed alert limit"),
+    _n(
+        "Tab3",
+        "AlertLimit",
+        "Speed alert limit",
+        help="in the speed unit from the Basic tab",
+    ),
     _t("Tab3", "Battery", "Battery protection", help="hardwired installations only"),
     _n(
         "Tab3",

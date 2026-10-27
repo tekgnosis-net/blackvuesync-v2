@@ -170,3 +170,22 @@ def test_field_view_key_and_label_use_safe_text() -> None:
     assert "�" in view.label
     view.key.encode("utf-8")  # should not raise
     view.label.encode("utf-8")  # should not raise
+
+
+def test_calibrated_codes_from_the_dr900x_plus() -> None:
+    auto = field_for("Tab1", "AutoParking")
+    assert display_value(auto, "1") == "Motion & Impact detection"
+    assert display_value(auto, "2") == "Time lapse"
+    psensor = field_for("Tab3", "PSENSOR")
+    assert display_value(psensor, "2") == "Voice recording"
+    assert display_value(psensor, "1") == "Manual recording"
+    assert display_value(psensor, "0") == "Off"
+    for section, key in (
+        ("Tab2", "NORMALSENSOR1"),
+        ("Tab2", "PARKINGSENSOR3"),
+        ("Tab2", "MOTIONSENSOR"),
+        ("Tab3", "VOLUME"),
+    ):
+        field = field_for(section, key)
+        assert (field.minimum, field.maximum) == (0, 10)
+    assert auto.help == ""
