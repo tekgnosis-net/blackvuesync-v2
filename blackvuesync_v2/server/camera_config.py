@@ -269,6 +269,10 @@ class PatchError(ValueError):
     """the requested change cannot be applied to this file unambiguously."""
 
 
+class SelfCheckError(PatchError):
+    """the patched file differs from the original beyond the requested keys."""
+
+
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f\x85\u2028\u2029]")
 
 
@@ -322,11 +326,11 @@ def self_check(
     old = _first_values(parse(before))
     new = _first_values(parse(after))
     if set(old) != set(new):
-        raise PatchError("patched file has a different set of keys")
+        raise SelfCheckError("patched file has a different set of keys")
     for name, value in new.items():
         expected = changes.get(name, old[name])
         if value != expected:
-            raise PatchError(f"{name[0]}.{name[1]} is {value!r}, expected {expected!r}")
+            raise SelfCheckError(f"{name[0]}.{name[1]} did not patch as expected")
 
 
 class UploadError(RuntimeError):

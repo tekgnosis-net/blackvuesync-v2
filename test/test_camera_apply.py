@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import dataclasses
 import os
+import socket
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -66,9 +67,7 @@ def camera(monkeypatch: pytest.MonkeyPatch) -> FakeCamera:
     fake = FakeCamera()
     monkeypatch.setattr(camera_config, "_get", fake.get)
     monkeypatch.setattr(camera_config, "_post", fake.post)
-    monkeypatch.setattr(
-        camera_apply, "get_dashcam_filenames", lambda base_url: list(fake.vod)
-    )
+    monkeypatch.setattr(camera_apply, "_list_camera", lambda *_a: list(fake.vod))
     clock = [0.0]
 
     def fake_sleep(seconds: float) -> None:
@@ -119,10 +118,10 @@ def test_pending_counts_recordings_without_a_downloaded_file(
 def test_pending_is_none_when_the_camera_is_unreachable(
     store: SettingsStore, camera: FakeCamera, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def boom(_base_url: str) -> list[str]:
-        raise RuntimeError("no route")
+    def boom(*_args: object) -> list[str]:
+        raise OSError("no route")
 
-    monkeypatch.setattr(camera_apply, "get_dashcam_filenames", boom)
+    monkeypatch.setattr(camera_apply, "_list_camera", boom)
     assert camera_apply.pending_recordings(store.get()) is None
 
 
@@ -249,3 +248,57 @@ def test_passwords_never_reach_the_log(
         )
     assert "NewHome-9999" not in caplog.text
     assert "Cloud.sta_pw (changed)" in caplog.text and "Tab3.VOLUME" in caplog.text
+
+
+def test_pending_listing_timeout_yields_none(
+    store: SettingsStore, camera: FakeCamera, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def slow(*_args: object) -> list[str]:
+        raise socket.timeout("timed out")
+
+    monkeypatch.setattr(camera_apply, "_list_camera", slow)
+    assert camera_apply.pending_recordings(store.get()) is None
+
+
+def test_self_check_failure_leaks_no_values(
+    store: SettingsStore, camera: FakeCamera, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from blackvuesync_v2.server.camera_crypto import encrypt_password
+
+    def fail(*_args: object) -> None:
+        raise camera_config.SelfCheckError("x")
+
+    monkeypatch.setattr(camera_config, "self_check", fail)
+    with pytest.raises(camera_apply.ApplyRefused) as e:
+        camera_apply.apply_changes(store, {"Cloud.sta_pw": "NewHome-9999"}, False)
+    assert (e.value.status, e.value.code) == (500, "PATCH_CHECK_FAILED")
+    leaked = f"{e.value} {e.value.detail}"
+    assert "NewHome-9999" not in leaked
+    assert encrypt_password("NewHome-9999") not in leaked
+    assert camera.uploads == []
+
+
+def test_real_self_check_messages_name_keys_only() -> None:
+    changes = {("Tab3", "VOLUME"): "9"}
+    with pytest.raises(camera_config.SelfCheckError) as e:
+        camera_config.self_check(CONFIG, CONFIG, changes)
+    assert str(e.value) == "Tab3.VOLUME did not patch as expected"
+
+
+def test_refused_patch_keeps_the_existing_backup(
+    store: SettingsStore, camera: FakeCamera
+) -> None:
+    store.update(
+        lambda s: dataclasses.replace(
+            s, camera=dataclasses.replace(s.camera, backup_count=1)
+        )
+    )
+    camera_apply.apply_changes(store, {"Tab3.VOLUME": "4"}, False)
+    backups = camera_config.BackupStore(store.path.parent / "camera" / "backups")
+    before = [b.name for b in backups.list()]
+    assert len(before) == 1 and backups.read(before[0]) == CONFIG
+    with pytest.raises(camera_apply.ApplyRefused) as e:
+        camera_apply.apply_changes(store, {"Tab9.Nope": "1"}, False)
+    assert e.value.status == 422
+    assert [b.name for b in backups.list()] == before
+    assert backups.read(before[0]) == CONFIG

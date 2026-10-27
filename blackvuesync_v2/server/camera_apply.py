@@ -5,8 +5,10 @@ scheduled sync never runs against a rebooting camera."""
 from __future__ import annotations
 
 import dataclasses
+import http.client
 import logging
 import os
+import urllib.request
 
 from blackvuesync_v2.server import camera_config
 from blackvuesync_v2.server.camera_config import BackupStore, CameraStore
@@ -19,7 +21,7 @@ from blackvuesync_v2.server.sync_runner import try_hold_sync_lock
 from blackvuesync_v2.settings import CameraSettings, Settings, SettingsStore
 from blackvuesync_v2.sync import (
     apply_recording_filters,
-    get_dashcam_filenames,
+    get_filenames,
     get_filepath,
     to_recording,
 )
@@ -50,11 +52,25 @@ class ApplyResult:
     changed: list[str]
 
 
+def _list_camera(address: str, timeout: float, affinity_key: str = "") -> list[str]:
+    """lists the camera's recording filenames with a bounded timeout."""
+    request = urllib.request.Request(f"http://{address}/blackvue_vod.cgi")
+    if affinity_key:
+        request.add_header("X-Affinity-Key", affinity_key)
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        charset = response.info().get_param("charset", "UTF-8")
+        return get_filenames([line.decode(charset) for line in response.readlines()])
+
+
 def pending_recordings(settings: Settings) -> int | None:
     """counts recordings on the camera with no downloaded file; None if unreachable."""
     try:
-        names = get_dashcam_filenames(f"http://{settings.connection.address}")
-    except Exception:  # pylint: disable=broad-exception-caught
+        names = _list_camera(
+            settings.connection.address,
+            settings.connection.timeout_seconds,
+            settings.sync.affinity_key or "",
+        )
+    except (OSError, ValueError, http.client.HTTPException):
         return None
     grouping = settings.sync.grouping
     parsed = (to_recording(name, grouping) for name in names if name.endswith(".mp4"))
@@ -102,6 +118,10 @@ def _patch(raw: bytes, changes: Changes) -> bytes:
     try:
         patched = camera_config.patch(raw, changes)
         camera_config.self_check(raw, patched, changes)
+    except camera_config.SelfCheckError as error:
+        raise ApplyRefused(
+            500, "PATCH_CHECK_FAILED", "the patched file failed its self-check"
+        ) from error
     except camera_config.PatchError as error:
         raise ApplyRefused(
             422, "INVALID_CHANGES", str(error), errors=[str(error)]
@@ -130,10 +150,10 @@ def _apply(
     if fresh is None:
         raise ApplyRefused(409, "CAMERA_OFFLINE", "the camera is not reachable")
     _check_format_gate(settings, changes, confirm_format, accept_loss)
+    patched = _patch(fresh.config.raw, changes)
     backups = BackupStore(store.path.parent / "camera" / "backups")
     backup = backups.save(fresh.config.raw)
     backups.prune(cam.backup_count)
-    patched = _patch(fresh.config.raw, changes)
     _upload(address, patched, cam, backup)
     changed = _describe(changes)
     logger.info("camera settings uploaded: %s", ", ".join(changed))

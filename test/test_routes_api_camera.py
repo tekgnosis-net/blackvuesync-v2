@@ -209,9 +209,7 @@ def apply_camera(monkeypatch: pytest.MonkeyPatch) -> Any:
     fake = ApplyCamera()
     monkeypatch.setattr(camera_config, "_get", fake.get)
     monkeypatch.setattr(camera_config, "_post", fake.post)
-    monkeypatch.setattr(
-        camera_apply, "get_dashcam_filenames", lambda _url: list(fake.vod)
-    )
+    monkeypatch.setattr(camera_apply, "_list_camera", lambda *_a: list(fake.vod))
     monkeypatch.setattr(time, "sleep", lambda _s: None)
     return fake
 
@@ -224,10 +222,10 @@ def test_pending_counts_and_reports_offline(
     resp = client.get("/api/camera/pending")
     assert (resp.status_code, resp.get_json()) == (200, {"pending": 0})
 
-    def boom(_url: str) -> list[str]:
-        raise RuntimeError("no route")
+    def boom(*_args: object) -> list[str]:
+        raise OSError("no route")
 
-    monkeypatch.setattr(camera_apply, "get_dashcam_filenames", boom)
+    monkeypatch.setattr(camera_apply, "_list_camera", boom)
     resp = client.get("/api/camera/pending")
     assert resp.status_code == 409
     assert resp.get_json()["code"] == "CAMERA_OFFLINE"
@@ -279,3 +277,13 @@ def test_apply_requires_login_and_csrf(tmp_path: Path) -> None:
         sess[SESSION_VERSION_KEY] = session_version(pw_hash)
     resp = strict.post("/api/camera/config", json={"changes": {"Tab3.VOLUME": "4"}})
     assert resp.status_code == 400
+
+
+def test_format_confirmations_must_be_json_true(client: Any, apply_camera: Any) -> None:
+    resp = client.post(
+        "/api/camera/config",
+        json={"changes": {"Tab1.TimeZone": "1100"}, "confirm_format": "false"},
+    )
+    assert resp.status_code == 409
+    assert resp.get_json()["code"] == "FORMAT_CONFIRMATION_REQUIRED"
+    assert apply_camera.uploads == []

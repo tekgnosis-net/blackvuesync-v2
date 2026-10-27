@@ -176,7 +176,10 @@ def apply() -> Response:
         )
     try:
         result = apply_changes(
-            store, raw, bool(body.get("confirm_format")), bool(body.get("accept_loss"))
+            store,
+            raw,
+            body.get("confirm_format") is True,
+            body.get("accept_loss") is True,
         )
     except ApplyRefused as refused:
         return _json(
