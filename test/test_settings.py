@@ -739,6 +739,36 @@ def test_bootstrap_metrics_env_vars(settings_path: Path) -> None:
     assert m.state_file == "/tmp/state.json"
 
 
+def test_bootstrap_camera_env_vars(settings_path: Path) -> None:
+    """verifies CAMERA_* env vars seed the camera section."""
+    env = {
+        "CAMERA_READ_TIMEOUT": "2.5",
+        "CAMERA_BACKUP_COUNT": "25",
+        "CAMERA_VERIFY_TIMEOUT": "240",
+        "CAMERA_VERIFY_POLL": "2",
+        "CAMERA_UPLOAD_TIMEOUT": "60",
+    }
+    store = _make_store(settings_path, env=env)
+    c = store.get().camera
+    assert c.read_timeout_seconds == 2.5
+    assert c.backup_count == 25
+    assert c.verify_timeout_seconds == 240.0
+    assert c.verify_poll_seconds == 2.0
+    assert c.upload_timeout_seconds == 60.0
+    # the seeds are persisted, so a later start without the env keeps them
+    assert _make_store(settings_path).get().camera.backup_count == 25
+
+
+def test_bootstrap_camera_env_var_out_of_range_warns(
+    settings_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """verifies an out-of-range camera seed is reported at bootstrap."""
+    with caplog.at_level(logging.WARNING, logger="blackvuesync_v2.settings"):
+        store = _make_store(settings_path, env={"CAMERA_BACKUP_COUNT": "0"})
+    assert store.get().camera.backup_count == 0
+    assert "camera.backup_count must be between 1 and 100" in caplog.text
+
+
 # ---------------------------------------------------------------------------
 # file-perms safety check
 # ---------------------------------------------------------------------------

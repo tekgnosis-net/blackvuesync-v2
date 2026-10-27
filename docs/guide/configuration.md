@@ -172,6 +172,7 @@ sessions** in the Auth section.
 | `VERBOSE`, `QUIET`, `LOG_FORMAT` | `logging.*` (`QUIET` accepts `1`, `true`, `yes`) |
 | `METRICS_FILE`, `METRICS_PUSHGATEWAY_URL`, `METRICS_JOB`, `METRICS_INSTANCE`, `METRICS_STATE_FILE` | `metrics.*` |
 | `STATS_RETENTION_DAYS` | `stats.retention_days` |
+| `CAMERA_READ_TIMEOUT`, `CAMERA_BACKUP_COUNT`, `CAMERA_VERIFY_TIMEOUT`, `CAMERA_VERIFY_POLL`, `CAMERA_UPLOAD_TIMEOUT` | `camera.*` (see [Camera settings](camera-settings.md)) |
 | `BLACKVUESYNC_PORT` | `web.port` |
 | `BLACKVUESYNC_ADMIN_USERNAME` | `auth.username` |
 | `BLACKVUESYNC_ADMIN_PASSWORD` | Hashed into `auth.password_hash` if at least 12 characters; skips the first-run page. Remove it from your compose file afterwards. |

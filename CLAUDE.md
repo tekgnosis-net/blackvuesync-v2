@@ -126,7 +126,9 @@ Env vars read on first-run bootstrap: `ADDRESS`, `TIMEOUT`,
 `BLACKVUESYNC_SCHEDULE`, `BLACKVUESYNC_TIMEZONE`, `PRIORITY`, `GROUPING`,
 `INCLUDE`, `EXCLUDE`, `RETRY_FAILED_AFTER`, `SKIP_METADATA`, `AFFINITY_KEY`,
 `KEEP`, `MAX_USED_DISK`, `VERBOSE`, `QUIET`, `LOG_FORMAT`, `METRICS_*`,
-`STATS_RETENTION_DAYS`, `BLACKVUESYNC_PORT`, `BLACKVUESYNC_ADMIN_USERNAME`,
+`STATS_RETENTION_DAYS`, `CAMERA_*` (`READ_TIMEOUT`, `BACKUP_COUNT`,
+`VERIFY_TIMEOUT`, `VERIFY_POLL`, `UPLOAD_TIMEOUT`), `BLACKVUESYNC_PORT`,
+`BLACKVUESYNC_ADMIN_USERNAME`,
 `BLACKVUESYNC_ADMIN_PASSWORD` (hashed into `auth.password_hash` when at least
 12 characters; never logged). `CRON` and `RUN_ONCE` are retired and only produce a warning. `DRY_RUN` and
 `TZ` are not seeded into the file; `system.dry_run` and `schedule.timezone`

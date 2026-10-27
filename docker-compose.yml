@@ -62,6 +62,13 @@ services:
       # "text" or "json".
       LOG_FORMAT: text
 
+      # camera settings editing (seconds unless noted); see the configuration guide.
+      # CAMERA_READ_TIMEOUT: 3.0
+      # CAMERA_BACKUP_COUNT: 10
+      # CAMERA_VERIFY_TIMEOUT: 120.0
+      # CAMERA_VERIFY_POLL: 5.0
+      # CAMERA_UPLOAD_TIMEOUT: 30.0
+
       # optional prometheus metrics.
       # METRICS_FILE: /config/blackvuesync.prom
       # METRICS_PUSHGATEWAY_URL: http://pushgateway:9091

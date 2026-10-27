@@ -32,6 +32,9 @@ Colomba; their numbers refer to upstream pull requests.
   same review.
 * Applying holds the sync lock: a scheduled sync is skipped meanwhile, and
   applying is refused (`SYNC_RUNNING`) while a sync runs.
+* The camera knobs can be seeded on first start with `CAMERA_READ_TIMEOUT`,
+  `CAMERA_BACKUP_COUNT`, `CAMERA_VERIFY_TIMEOUT`, `CAMERA_VERIFY_POLL` and
+  `CAMERA_UPLOAD_TIMEOUT`, like the other sections.
 * New settings `camera.backup_count`, `camera.verify_timeout_seconds`,
   `camera.verify_poll_seconds` and `camera.upload_timeout_seconds`.
 * New endpoints `GET /api/camera/pending`, `POST /api/camera/config`,

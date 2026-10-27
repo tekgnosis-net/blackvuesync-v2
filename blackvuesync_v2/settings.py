@@ -1019,6 +1019,14 @@ class SettingsStore:
 
         viewer = ViewerSettings()
 
+        camera = CameraSettings(
+            read_timeout_seconds=float(_env("CAMERA_READ_TIMEOUT", "3.0")),
+            backup_count=int(_env("CAMERA_BACKUP_COUNT", "10")),
+            verify_timeout_seconds=float(_env("CAMERA_VERIFY_TIMEOUT", "120.0")),
+            verify_poll_seconds=float(_env("CAMERA_VERIFY_POLL", "5.0")),
+            upload_timeout_seconds=float(_env("CAMERA_UPLOAD_TIMEOUT", "30.0")),
+        )
+
         web = WebSettings(
             port=int(_env("BLACKVUESYNC_PORT", "8080")),
         )
@@ -1041,9 +1049,13 @@ class SettingsStore:
             metrics=metrics,
             stats=stats,
             viewer=viewer,
+            camera=camera,
             web=web,
             auth=auth,
         )
+        # out-of-range seeds are kept but reported, as for a hand-edited file
+        for error in settings.validate():
+            logger.warning("settings validation error: %s", error)
 
         bootstrapped_fields = [
             k
