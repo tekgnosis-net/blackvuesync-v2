@@ -12,7 +12,7 @@ repository. Versions 2.2.0 and earlier are the upstream
 [BlackVue Sync](https://github.com/acolomba/blackvuesync) by Alessandro
 Colomba; their numbers refer to upstream pull requests.
 
-## 3.2.2 - 2026-10-27
+## Unreleased
 
 ### Added
 
@@ -36,6 +36,8 @@ Colomba; their numbers refer to upstream pull requests.
   `camera.verify_poll_seconds`.
 * New endpoints `GET /api/camera/pending`, `POST /api/camera/config`,
   `GET /api/camera/backups` and `POST /api/camera/backups/<name>/restore`.
+
+## 3.2.2 - 2026-10-27
 
 ### Fixed
 
