@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import email
 import http.server
 import os
 import threading
@@ -67,22 +68,45 @@ class FakeCameraServer:
     """serves the fixture config.ini and version.bin like a dashcam."""
 
     def __init__(self) -> None:
-        files = {
-            "/Config/config.ini": (
-                _CAMERA_FIXTURES / "dr900x-plus-config.ini"
-            ).read_bytes(),
-            "/Config/version.bin": (
-                _CAMERA_FIXTURES / "dr900x-plus-version.bin"
-            ).read_bytes(),
-        }
+        self.config = (_CAMERA_FIXTURES / "dr900x-plus-config.ini").read_bytes()
+        self.vod: list[str] = []
+        version = (_CAMERA_FIXTURES / "dr900x-plus-version.bin").read_bytes()
+        outer = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
-            def do_GET(self) -> None:  # noqa: N802
-                body = files.get(self.path.split("?")[0])
-                self.send_response(200 if body is not None else 404)
-                self.send_header("Content-Length", str(len(body or b"")))
+            def _reply(self, status: int, body: bytes) -> None:
+                self.send_response(status)
+                self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
-                self.wfile.write(body or b"")
+                self.wfile.write(body)
+
+            def do_GET(self) -> None:  # noqa: N802
+                path = self.path.split("?")[0]
+                if path == "/Config/config.ini":
+                    self._reply(200, outer.config)
+                elif path == "/Config/version.bin":
+                    self._reply(200, version)
+                elif path == "/blackvue_vod.cgi":
+                    lines = ["v:1.00\r\n"]
+                    lines += [f"n:/Record/{n},s:1000000\r\n" for n in outer.vod]
+                    self._reply(200, "".join(lines).encode())
+                else:
+                    self._reply(404, b"")
+
+            def do_POST(self) -> None:  # noqa: N802
+                body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+                if self.path.split("?")[0] != "/upload.cgi":
+                    self._reply(404, b"")
+                    return
+                head = b"Content-Type: " + self.headers["Content-Type"].encode()
+                message = email.message_from_bytes(head + b"\r\n\r\n" + body)
+                for part in message.walk():
+                    disposition = part.get("Content-Disposition", "")
+                    if 'name="FileData"' in disposition:
+                        payload = part.get_payload(decode=True)
+                        if isinstance(payload, bytes):
+                            outer.config = payload
+                self._reply(200, b"")
 
             def log_message(self, *_args: Any) -> None:
                 return None

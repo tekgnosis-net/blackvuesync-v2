@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -74,3 +75,121 @@ def test_refresh_after_the_camera_leaves_shows_the_snapshot(
     pane = page.locator('[data-pane="camera-system"]')
     expect(pane).to_contain_text("Camera offline: showing settings read at")
     expect(pane).to_be_visible()  # the active tab survives the swap
+
+
+FIXTURE = Path(__file__).resolve().parents[1] / "fixtures/camera/dr900x-plus-config.ini"
+
+
+def _stage(page: Page, tab: str, key: str, value: str) -> None:
+    page.locator(f'[data-section-nav="camera-{tab}"]').click()
+    control = page.locator(f'[data-pane="camera-{tab}"] [data-camera-key="{key}"]')
+    control.fill(value)
+    control.dispatch_event("change")
+
+
+def _stage_timezone(page: Page) -> None:
+    page.locator('[data-section-nav="camera-basic"]').click()
+    control = page.locator('[data-camera-key="Tab1.TimeZone"]')
+    control.select_option(
+        control.evaluate(
+            "el => [...el.options].map(o => o.value)"
+            ".find(v => v !== el.dataset.original)"
+        )
+    )
+
+
+def _apply_one_change(page: Page, base: str) -> None:
+    _open_camera_tab(page, base, "system")
+    _stage(page, "system", "Tab3.VOLUME", "4")
+    page.get_by_role("button", name="Review & apply").click()
+    dialog = page.locator("#camera-review")
+    dialog.locator("[data-review-apply]").click()
+    expect(dialog.locator("[data-review-result]")).to_contain_text("Applied")
+    dialog.locator("[data-review-cancel]").click()
+
+
+def test_stage_review_apply(live_server: Any, fake_camera: Any, page: Page) -> None:
+    _open_camera_tab(page, live_server.url, "system")
+    _stage(page, "system", "Tab3.VOLUME", "4")
+    _stage(page, "cloud", "Cloud.sta2_ssid", "Shed")
+    bar = page.locator("#camera-apply-bar")
+    expect(bar.locator("[data-camera-count]")).to_contain_text("2")
+    bar.get_by_role("button", name="Review & apply").click()
+    dialog = page.locator("#camera-review")
+    expect(dialog.locator("[data-review-rows] tr")).to_have_count(2)
+    dialog.locator("[data-review-apply]").click()
+    expect(dialog.locator("[data-review-result]")).to_contain_text(
+        "Applied and verified"
+    )
+    dialog.locator("[data-review-cancel]").click()
+    page.locator('[data-section-nav="camera-system"]').click()
+    expect(
+        page.locator('[data-pane="camera-system"] [data-camera-key="Tab3.VOLUME"]')
+    ).to_have_value("4")
+    assert b"VOLUME=4" in fake_camera.config
+    assert b"sta2_ssid=Shed" in fake_camera.config
+
+
+def test_format_key_warns_about_pending_recordings(
+    live_server: Any, fake_camera: Any, page: Page
+) -> None:
+    fake_camera.vod = ["20261027_210000_NF.mp4"]
+    before = fake_camera.config
+    _open_camera_tab(page, live_server.url, "basic")
+    _stage_timezone(page)
+    page.get_by_role("button", name="Review & apply").click()
+    dialog = page.locator("#camera-review")
+    expect(dialog.locator("[data-review-pending]")).to_contain_text("1 recording")
+    apply = dialog.locator("[data-review-apply]")
+    expect(apply).to_be_disabled()
+    dialog.locator("[data-confirm-format]").check()
+    expect(apply).to_be_disabled()
+    dialog.locator("[data-accept-loss]").check()
+    expect(apply).to_be_enabled()
+    dialog.locator("[data-review-cancel]").click()
+    assert fake_camera.config == before
+
+
+def test_format_key_needs_the_checkbox_when_nothing_is_pending(
+    live_server: Any, fake_camera: Any, page: Page
+) -> None:
+    fake_camera.vod = []
+    _open_camera_tab(page, live_server.url, "basic")
+    _stage_timezone(page)
+    page.get_by_role("button", name="Review & apply").click()
+    dialog = page.locator("#camera-review")
+    expect(dialog.locator("[data-review-loss]")).to_be_hidden()
+    apply = dialog.locator("[data-review-apply]")
+    expect(apply).to_be_disabled()
+    dialog.locator("[data-confirm-format]").check()
+    expect(apply).to_be_enabled()
+
+
+@pytest.mark.usefixtures("fake_camera")
+def test_discard_resets_fields_and_hides_the_bar(live_server: Any, page: Page) -> None:
+    _open_camera_tab(page, live_server.url, "system")
+    _stage(page, "system", "Tab3.VOLUME", "4")
+    bar = page.locator("#camera-apply-bar")
+    expect(bar).to_be_visible()
+    bar.get_by_role("button", name="Discard").click()
+    expect(bar).to_be_hidden()
+    expect(page.locator('[data-camera-key="Tab3.VOLUME"]')).to_have_value("5")
+
+
+def test_backups_pane_lists_and_restores(
+    live_server: Any, fake_camera: Any, page: Page
+) -> None:
+    _apply_one_change(page, live_server.url)
+    assert b"VOLUME=4" in fake_camera.config
+    page.locator('[data-section-nav="camera-backups"]').click()
+    pane = page.locator('[data-pane="camera-backups"]')
+    rows = pane.locator(".camera-backup")
+    expect(rows).to_have_count(1)
+    rows.first.locator("button[data-restore]").click()
+    dialog = page.locator("#camera-review")
+    expect(dialog.locator("[data-review-title]")).to_contain_text(".ini")
+    expect(dialog).to_have_attribute("data-state", "ready")
+    dialog.locator("[data-review-apply]").click()
+    expect(dialog).to_have_attribute("data-state", "done")
+    expect(dialog.locator("[data-review-result]")).to_contain_text("Applied")
+    assert fake_camera.config == FIXTURE.read_bytes()
