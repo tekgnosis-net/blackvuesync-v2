@@ -122,6 +122,7 @@ These control editing as well as reading; see [Camera settings](camera-settings.
 | `backup_count` | `10` | How many copies of the camera's `config.ini` are kept before each change (1-100). Backups go in the `camera/backups/` folder next to `settings.json`. |
 | `verify_timeout_seconds` | `120` | How long a change waits for the camera to answer after the upload, since it may reboot (10-600). |
 | `verify_poll_seconds` | `5` | Seconds between read-back attempts while waiting for the camera (1-30). |
+| `upload_timeout_seconds` | `30` | How long the upload of the changed file waits for the camera's answer (5-120). If the answer is lost, the change continues to the verify step instead of failing. |
 
 ### Web
 

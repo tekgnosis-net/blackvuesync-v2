@@ -160,6 +160,19 @@ now be on a network the app cannot reach: use the BlackVue phone app to fix
 it, then restore the backup from **Settings → Camera → Backups**. The backup
 name is in the dialog and in the log.
 
+### The apply request timed out or the upload failed
+
+An apply is one long request (up to `camera.verify_timeout_seconds`). If a
+reverse proxy in front of the app times out sooner, the page shows a network
+error but the apply carries on; press **Refresh** on the Camera pane to see
+what the camera holds now. The same advice applies to "upload failed": the
+camera's file is unchanged unless the dialog says otherwise, so **Refresh**
+shows the truth. When the camera drops the connection without answering, the
+app continues to the verify step and says the camera did not acknowledge the
+upload; the result below that line is what the camera reports now. If an apply
+is refused with "another camera settings change is in progress", wait for the
+first one to end.
+
 ### The camera kept a value
 
 The dialog lists keys under "The camera kept its own value for". The camera

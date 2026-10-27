@@ -355,6 +355,7 @@ def _post(url: str, body: bytes, content_type: str, timeout: float) -> int:
             status: int = resp.status
             return status
     except urllib.error.HTTPError as error:
+        error.close()
         raise UploadError(f"camera answered {error.code}", status=error.code) from error
     except (OSError, ValueError, http.client.HTTPException) as error:
         raise UploadError(f"upload failed: {error}") from error
@@ -383,11 +384,16 @@ def upload(address: str, raw: bytes, timeout: float) -> int:
     )
 
 
-def wait_until_back(address: str, timeout: float, poll: float) -> CameraRead | None:
-    """polls config.ini until the camera answers or timeout seconds pass."""
+def wait_until_back(
+    address: str, timeout: float, poll: float, read_timeout: float
+) -> CameraRead | None:
+    """polls config.ini until the camera answers or timeout seconds pass.
+
+    each read waits read_timeout seconds; poll is the pause between reads.
+    """
     deadline = time.monotonic() + timeout
     while True:
-        read = fetch(address, min(poll, 5.0) if poll > 0 else 1.0)
+        read = fetch(address, read_timeout)
         if read is not None:
             return read
         if time.monotonic() >= deadline:
@@ -396,6 +402,14 @@ def wait_until_back(address: str, timeout: float, poll: float) -> CameraRead | N
 
 
 BACKUP_NAME_RE = re.compile(r"config-\d{8}-\d{6}(?:-\d+)?\.ini")
+_BACKUP_PARTS_RE = re.compile(r"config-(\d{8}-\d{6})(?:-(\d+))?\.ini")
+
+
+def _backup_order(name: str) -> tuple[str, int]:
+    """sorts a backup name by its timestamp, then by its collision suffix."""
+    match = _BACKUP_PARTS_RE.fullmatch(name)
+    assert match is not None  # list() yields only names BACKUP_NAME_RE accepts
+    return match.group(1), int(match.group(2) or 0)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -416,6 +430,8 @@ class BackupStore:
     def save(self, raw: bytes, now: datetime.datetime | None = None) -> str:
         """stores raw under a local-time name; returns the name."""
         self._dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        # parents=True creates the camera/ folder with the umask's mode
+        os.chmod(self._dir.parent, 0o700)
         os.chmod(self._dir, 0o700)
         stamp = (now or datetime.datetime.now()).astimezone().strftime("%Y%m%d-%H%M%S")
         name = f"config-{stamp}.ini"
@@ -445,10 +461,17 @@ class BackupStore:
                 )
         return sorted(infos, key=lambda b: (b.created, b.name), reverse=True)
 
-    def prune(self, keep: int) -> None:
-        """deletes all but the newest keep backups."""
-        for info in self.list()[max(keep, 0) :]:
-            (self._dir / info.name).unlink(missing_ok=True)
+    def prune(self, keep: int, protect: str | None = None) -> None:
+        """deletes all but the newest keep backups; protect is never deleted.
+
+        newest follows the name (timestamp, then collision suffix), not the
+        file's mtime, so a clock step cannot make the fresh copy look old.
+        """
+        names = [info.name for info in self.list()]
+        names.sort(key=_backup_order, reverse=True)
+        for name in names[max(keep, 0) :]:
+            if name != protect:
+                (self._dir / name).unlink(missing_ok=True)
 
     def read(self, name: str) -> bytes | None:
         """returns a backup's bytes; None for an unknown or malformed name."""

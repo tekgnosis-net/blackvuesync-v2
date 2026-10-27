@@ -227,6 +227,9 @@ Triggers an on-demand sync. Requires the `X-CSRFToken` header.
 }
 ```
 
+`current_job_id` is `"camera-apply"` while a camera settings change holds the
+lock instead of a sync.
+
 **Example (curl):**
 
 ```bash
@@ -581,8 +584,14 @@ and are encoded for you). `confirm_format` and `accept_loss` default to
 
 ```json
 {"verified": true, "came_back": true, "kept": [], "backup": "config-20261027-101500.ini",
- "changed": ["Tab3.VOLUME", "Wifi.ap_pw (changed)"]}
+ "changed": ["Tab3.VOLUME", "Wifi.ap_pw (changed)"], "upload_confirmed": true}
 ```
+
+`upload_confirmed` is false when the connection dropped before the camera
+acknowledged the upload (the camera may have restarted first). The call then
+carries on to the wait and read-back instead of answering 502, so the
+`verified`, `came_back` and `kept` fields describe what the camera reports now.
+The upload waits `camera.upload_timeout_seconds` (default 30).
 
 `verified` is true when the camera came back and holds every value. When it
 came back but replaced some values, `verified` is false and `kept` lists those
@@ -604,10 +613,11 @@ Errors (body `{"code": ..., "error": ...}`; some add fields):
 | 422 | `INVALID_CHANGES` | `changes` is not an object of strings, a key or value is invalid, or the camera's file could not be patched. Validation messages are in `errors` (a list), when present. |
 | 422 | `NO_CHANGES` | `changes` is empty after validation. |
 | 409 | `SYNC_RUNNING` | a sync holds the lock; nothing was changed. |
+| 409 | `APPLY_RUNNING` | another camera settings apply or restore holds the lock; nothing was changed. |
 | 409 | `CAMERA_OFFLINE` | the camera could not be read (or listed, for the format gate). |
 | 409 | `FORMAT_CONFIRMATION_REQUIRED` | see above; includes `pending`. |
 | 500 | `PATCH_CHECK_FAILED` | the patched file differed from the original in more than the requested keys; nothing was uploaded. |
-| 502 | `UPLOAD_FAILED` | the camera rejected or dropped the upload; includes `backup`. |
+| 502 | `UPLOAD_FAILED` | the camera answered the upload with an error; includes `backup`. A dropped connection is not an error: see `upload_confirmed`. |
 
 ### `GET /api/camera/backups`
 

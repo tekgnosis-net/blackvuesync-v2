@@ -111,7 +111,7 @@ Settings are organized into twelve frozen-dataclass sections (schema
 | metrics | immediate | file, pushgateway_url, job, instance, state_file |
 | stats | next_tick | retention_days |
 | viewer | immediate | journey_mode, speed_unit, continuous_play |
-| camera | immediate | read_timeout_seconds, backup_count, verify_timeout_seconds, verify_poll_seconds |
+| camera | immediate | read_timeout_seconds, backup_count, verify_timeout_seconds, verify_poll_seconds, upload_timeout_seconds |
 | web | restart | port, session_lifetime_hours |
 | auth | immediate | mode, username, password_hash, session_secret, trusted_proxies, proxy_user_header |
 | system | restart | destination, dry_run |

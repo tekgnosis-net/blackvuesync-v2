@@ -18,7 +18,11 @@ from blackvuesync_v2.server.camera_schema import (
     is_secret,
     prepare_changes,
 )
-from blackvuesync_v2.server.sync_runner import try_hold_sync_lock
+from blackvuesync_v2.server.sync_runner import (
+    CAMERA_APPLY_HOLDER,
+    lock_holder,
+    try_hold_sync_lock,
+)
 from blackvuesync_v2.settings import CameraSettings, Settings, SettingsStore
 from blackvuesync_v2.sync import (
     apply_recording_filters,
@@ -51,6 +55,22 @@ class ApplyResult:
     kept: list[str]
     backup: str
     changed: list[str]
+    # false when the upload's answer was lost; the result is then what the
+    # camera reports afterwards
+    upload_confirmed: bool = True
+
+
+def _lock_refusal() -> ApplyRefused:
+    """explains why the lock is taken: another apply or a sync."""
+    if lock_holder() == CAMERA_APPLY_HOLDER:
+        return ApplyRefused(
+            409,
+            "APPLY_RUNNING",
+            "another camera settings change is in progress; try again when it ends",
+        )
+    return ApplyRefused(
+        409, "SYNC_RUNNING", "a sync is running; try again when it finishes"
+    )
 
 
 def _list_camera(address: str, timeout: float, affinity_key: str = "") -> list[str]:
@@ -130,11 +150,40 @@ def _patch(raw: bytes, changes: Changes) -> bytes:
     return patched
 
 
-def _upload(address: str, patched: bytes, cam: CameraSettings, backup: str) -> None:
+def _upload(address: str, patched: bytes, cam: CameraSettings, backup: str) -> bool:
+    """uploads the file; False when the camera's answer was lost in transit.
+
+    a transport error leaves it unknown whether the camera took the file (it
+    may reboot before answering), so the caller verifies instead of failing.
+    """
     try:
-        camera_config.upload(address, patched, cam.read_timeout_seconds)
+        camera_config.upload(address, patched, cam.upload_timeout_seconds)
     except camera_config.UploadError as error:
-        raise ApplyRefused(502, "UPLOAD_FAILED", str(error), backup=backup) from error
+        if error.status is not None:
+            raise ApplyRefused(
+                502, "UPLOAD_FAILED", str(error), backup=backup
+            ) from error
+        logger.warning("camera did not acknowledge the upload: %s", error)
+        return False
+    return True
+
+
+def _same_value(section: str, key: str, camera_value: str | None, wanted: str) -> bool:
+    """compares a read-back value; encoded passwords ignore hex case."""
+    if camera_value is None:
+        return False
+    if is_secret(section, key):
+        return camera_value.lower() == wanted.lower()
+    return camera_value == wanted
+
+
+def _kept(back: camera_config.CameraRead, changes: Changes) -> list[str]:
+    """names the changed keys whose read-back value differs from what was set."""
+    return [
+        f"{section}.{key}"
+        for (section, key), value in changes.items()
+        if not _same_value(section, key, back.config.value(section, key), value)
+    ]
 
 
 def _apply(
@@ -145,32 +194,33 @@ def _apply(
     accept_loss: bool,
 ) -> ApplyResult:
     """runs the pipeline while the caller holds the sync lock."""
-    address = settings.connection.address
     cam = settings.camera
-    fresh = camera_config.fetch(address, cam.read_timeout_seconds)
+    fresh = camera_config.fetch(settings.connection.address, cam.read_timeout_seconds)
     if fresh is None:
         raise ApplyRefused(409, "CAMERA_OFFLINE", "the camera is not reachable")
-    _check_format_gate(settings, changes, confirm_format, accept_loss)
     patched = _patch(fresh.config.raw, changes)
+    _check_format_gate(settings, changes, confirm_format, accept_loss)
     backups = BackupStore(store.path.parent / "camera" / "backups")
     backup = backups.save(fresh.config.raw)
-    backups.prune(cam.backup_count)
-    _upload(address, patched, cam, backup)
+    backups.prune(cam.backup_count, protect=backup)
+    confirmed = _upload(settings.connection.address, patched, cam, backup)
     changed = _describe(changes)
     logger.info("camera settings uploaded: %s", ", ".join(changed))
     back = camera_config.wait_until_back(
-        address, cam.verify_timeout_seconds, cam.verify_poll_seconds
+        settings.connection.address,
+        cam.verify_timeout_seconds,
+        cam.verify_poll_seconds,
+        cam.read_timeout_seconds,
     )
     if back is None:
         logger.warning("camera did not come back within the verify window")
-        return ApplyResult(False, False, [], backup, changed)
-    CameraStore(store.path.parent / "camera").save(back)
-    kept = [
-        f"{section}.{key}"
-        for (section, key), value in changes.items()
-        if back.config.value(section, key) != value
-    ]
-    return ApplyResult(not kept, True, kept, backup, changed)
+        return ApplyResult(False, False, [], backup, changed, confirmed)
+    try:
+        CameraStore(store.path.parent / "camera").save(back)
+    except OSError as error:
+        logger.warning("could not save the camera snapshot: %s", error)
+    kept = _kept(back, changes)
+    return ApplyResult(not kept, True, kept, backup, changed, confirmed)
 
 
 def apply_changes(
@@ -190,9 +240,7 @@ def apply_changes(
         raise ApplyRefused(422, "NO_CHANGES", "nothing to apply")
     with try_hold_sync_lock() as held:
         if not held:
-            raise ApplyRefused(
-                409, "SYNC_RUNNING", "a sync is running; try again when it finishes"
-            )
+            raise _lock_refusal()
         return _apply(store, settings, changes, confirm_format, accept_loss)
 
 
@@ -230,9 +278,7 @@ def restore_backup(
     settings = store.get()
     with try_hold_sync_lock() as held:
         if not held:
-            raise ApplyRefused(
-                409, "SYNC_RUNNING", "a sync is running; try again when it finishes"
-            )
+            raise _lock_refusal()
         changes = {
             (c.section, c.key): c.after
             for c in restore_diff(store, name, settings)

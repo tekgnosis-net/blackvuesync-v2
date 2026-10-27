@@ -145,5 +145,6 @@ def test_camera_section_has_the_read_timeout_field() -> None:
         "backup_count",
         "verify_timeout_seconds",
         "verify_poll_seconds",
+        "upload_timeout_seconds",
     ]
     assert all((spec.widget, spec.data_type) == ("number", "number") for spec in specs)

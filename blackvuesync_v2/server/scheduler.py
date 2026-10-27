@@ -12,7 +12,7 @@ from apscheduler.triggers.combining import OrTrigger
 from apscheduler.triggers.cron import CronTrigger
 
 from blackvuesync_v2.server.progress import ProgressPublisher
-from blackvuesync_v2.server.sync_runner import trigger_sync
+from blackvuesync_v2.server.sync_runner import CAMERA_APPLY_HOLDER, trigger_sync
 from blackvuesync_v2.settings import (
     DEFAULT_CRON_EXPRESSION,
     DEFAULT_TIMEZONE,
@@ -79,7 +79,11 @@ def _scheduled_run(
         logger.info("scheduled sync skipped: schedule is paused")
         return
     result = trigger_sync(settings, publisher, stats_store, store.path.parent)
-    if result["status"] == "already_running":
+    if result["status"] == "already_running" and (
+        result["job_id"] == CAMERA_APPLY_HOLDER
+    ):
+        logger.info("scheduled sync skipped: a camera settings change is in progress")
+    elif result["status"] == "already_running":
         logger.info(
             "scheduled sync skipped: another sync is already running (job_id=%s)",
             result["job_id"],

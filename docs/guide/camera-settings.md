@@ -69,6 +69,21 @@ of these outcomes:
   but the camera did not answer within the wait. See
   [Troubleshooting](troubleshooting.md#the-camera-did-not-come-back-after-applying).
 
+When the camera drops the connection before it acknowledges the upload (it may
+restart first), the app does not call that a failure: it waits and verifies as
+usual, and the dialog adds "The camera did not acknowledge the upload; the
+result below is what it reports now." Only a camera that answers with an error
+fails the upload outright.
+
+The apply is a single long request, up to `camera.verify_timeout_seconds`. A
+reverse proxy with a shorter timeout may cut the connection; the apply keeps
+running on the server. Press **Refresh** on the Camera pane to see the
+result.
+
+Password fields start empty and an empty field means unchanged: there is no
+control for clearing a camera password. A password you reveal with the eye icon
+only counts as a change once you edit it, and hiding it again empties the field.
+
 ![Review dialog](../assets/screenshots/camera-review.png)
 
 Changing the Wi-Fi or cloud settings can leave the camera unreachable from

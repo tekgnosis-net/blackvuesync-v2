@@ -246,7 +246,10 @@ def test_passwords_never_reach_the_log(
         camera_apply.apply_changes(
             store, {"Cloud.sta_pw": "NewHome-9999", "Tab3.VOLUME": "3"}, False
         )
+    from blackvuesync_v2.server.camera_crypto import encrypt_password
+
     assert "NewHome-9999" not in caplog.text
+    assert encrypt_password("NewHome-9999") not in caplog.text
     assert "Cloud.sta_pw (changed)" in caplog.text and "Tab3.VOLUME" in caplog.text
 
 
@@ -391,10 +394,13 @@ def test_restore_refused_while_a_sync_runs(
     store: SettingsStore, camera: FakeCamera
 ) -> None:
     name = _backup(store, {("Tab3", "VOLUME"): "2"})
-    with sync_runner.try_hold_sync_lock() as held:
-        assert held
+    lock = sync_runner._sync_lock  # pylint: disable=protected-access
+    assert lock.acquire(blocking=False)
+    try:
         with pytest.raises(camera_apply.ApplyRefused) as e:
             camera_apply.restore_backup(store, name, False)
+    finally:
+        lock.release()
     assert (e.value.status, e.value.code) == (409, "SYNC_RUNNING")
     assert camera.uploads == []
 
@@ -408,3 +414,149 @@ def test_restore_refused_when_the_camera_is_offline(
         camera_apply.restore_backup(store, name, False)
     assert (e.value.status, e.value.code) == (409, "CAMERA_OFFLINE")
     assert camera.uploads == []
+
+
+def test_upload_preserves_every_other_byte(
+    store: SettingsStore, camera: FakeCamera
+) -> None:
+    import re
+
+    camera_apply.apply_changes(store, {"Tab3.VOLUME": "4"}, False)
+    expected = re.sub(rb"(?m)^(VOLUME=)[^\r\n]*", rb"\g<1>4", CONFIG, count=1)
+    assert expected != CONFIG
+    assert camera.uploads == [expected]
+
+
+def test_apply_continues_when_the_upload_answer_is_lost(
+    store: SettingsStore, camera: FakeCamera, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = camera.post
+
+    def drop_answer(url: str, body: bytes, content_type: str, timeout: float) -> int:
+        original(url, body, content_type, timeout)  # the camera took the file
+        raise camera_config.UploadError("upload failed: reset", status=None)
+
+    monkeypatch.setattr(camera_config, "_post", drop_answer)
+    camera.reboot_reads = 2
+    result = camera_apply.apply_changes(store, {"Tab3.VOLUME": "4"}, False)
+    assert len(camera.uploads) == 1
+    assert (result.verified, result.came_back, result.upload_confirmed) == (
+        True,
+        True,
+        False,
+    )
+    assert camera_config.parse(camera.config).value("Tab3", "VOLUME") == "4"
+
+
+def test_lost_upload_that_never_took_effect_reports_kept(
+    store: SettingsStore, camera: FakeCamera, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def drop(url: str, body: bytes, content_type: str, timeout: float) -> int:
+        raise camera_config.UploadError("upload failed: reset", status=None)
+
+    monkeypatch.setattr(camera_config, "_post", drop)
+    result = camera_apply.apply_changes(store, {"Tab3.VOLUME": "4"}, False)
+    assert result.upload_confirmed is False
+    assert result.came_back and not result.verified
+    assert result.kept == ["Tab3.VOLUME"]
+
+
+def test_a_rejected_upload_is_still_a_502(
+    store: SettingsStore, camera: FakeCamera
+) -> None:
+    camera.upload_status = 500
+    with pytest.raises(camera_apply.ApplyRefused) as e:
+        camera_apply.apply_changes(store, {"Tab3.VOLUME": "4"}, False)
+    assert (e.value.status, e.value.code) == (502, "UPLOAD_FAILED")
+
+
+def test_upload_uses_the_configured_timeout(
+    store: SettingsStore, camera: FakeCamera, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store.update(
+        lambda s: dataclasses.replace(
+            s, camera=dataclasses.replace(s.camera, upload_timeout_seconds=17.0)
+        )
+    )
+    seen: list[float] = []
+    original = camera.post
+
+    def spy(url: str, body: bytes, content_type: str, timeout: float) -> int:
+        seen.append(timeout)
+        return original(url, body, content_type, timeout)
+
+    monkeypatch.setattr(camera_config, "_post", spy)
+    camera_apply.apply_changes(store, {"Tab3.VOLUME": "4"}, False)
+    assert seen == [17.0]
+
+
+def test_offline_camera_uploads_nothing(
+    store: SettingsStore, camera: FakeCamera
+) -> None:
+    camera.offline_reads = 99
+    with pytest.raises(camera_apply.ApplyRefused) as e:
+        camera_apply.apply_changes(store, {"Tab3.VOLUME": "4"}, False)
+    assert (e.value.status, e.value.code) == (409, "CAMERA_OFFLINE")
+    assert camera.uploads == []
+
+
+def test_missing_key_is_422_before_the_format_gate(
+    store: SettingsStore, camera: FakeCamera, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_listing(*_args: object) -> list[str]:
+        raise AssertionError("the gate must not run first")
+
+    monkeypatch.setattr(camera_apply, "_list_camera", no_listing)
+    camera.config = camera.config.replace(b"TimeZone=", b"TimeZoneX=")
+    with pytest.raises(camera_apply.ApplyRefused) as e:
+        camera_apply.apply_changes(store, {"Tab1.TimeZone": "1100"}, False)
+    assert (e.value.status, e.value.code) == (422, "INVALID_CHANGES")
+
+
+def test_a_second_apply_while_one_runs_is_apply_running(
+    store: SettingsStore, camera: FakeCamera, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, tuple[int, str]] = {}
+    original = camera.post
+
+    def post_and_probe(url: str, body: bytes, content_type: str, timeout: float) -> int:
+        try:
+            camera_apply.apply_changes(store, {"Tab3.VOLUME": "5"}, False)
+        except camera_apply.ApplyRefused as refused:
+            seen["apply"] = (refused.status, refused.code)
+        try:
+            camera_apply.restore_backup(store, "config-20260101-000000.ini", False)
+        except camera_apply.ApplyRefused as refused:
+            seen["restore"] = (refused.status, refused.code)
+        return original(url, body, content_type, timeout)
+
+    monkeypatch.setattr(camera_config, "_post", post_and_probe)
+    _backup(store, {("Tab3", "VOLUME"): "2"})
+    camera_apply.apply_changes(store, {"Tab3.VOLUME": "4"}, False)
+    assert seen["apply"] == (409, "APPLY_RUNNING")
+    # an unknown backup name answers 404 before the lock is tried
+    assert seen["restore"] == (404, "NO_SUCH_BACKUP")
+    assert sync_runner.lock_holder() == ""
+
+
+def test_the_scheduler_logs_a_camera_apply_skip(
+    store: SettingsStore,
+    camera: FakeCamera,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    import logging
+
+    from blackvuesync_v2.server.progress import ProgressPublisher
+    from blackvuesync_v2.server.scheduler import _scheduled_run
+
+    original = camera.post
+
+    def post_and_probe(url: str, body: bytes, content_type: str, timeout: float) -> int:
+        with caplog.at_level(logging.INFO):
+            _scheduled_run(store, ProgressPublisher())
+        return original(url, body, content_type, timeout)
+
+    monkeypatch.setattr(camera_config, "_post", post_and_probe)
+    camera_apply.apply_changes(store, {"Tab3.VOLUME": "4"}, False)
+    assert "a camera settings change is in progress" in caplog.text

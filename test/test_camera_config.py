@@ -12,6 +12,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -383,7 +384,7 @@ def test_wait_until_back_polls_until_the_camera_answers(
         lambda url, _timeout: next(answers) if url.endswith("config.ini") else VERSION,
     )
     monkeypatch.setattr(time, "sleep", lambda _s: None)
-    read = wait_until_back("cam", timeout=10.0, poll=0.01)
+    read = wait_until_back("cam", timeout=10.0, poll=0.01, read_timeout=1.0)
     assert read is not None and read.config.raw == CONFIG
 
 
@@ -392,7 +393,7 @@ def test_wait_until_back_gives_up(monkeypatch: pytest.MonkeyPatch) -> None:
     clock = iter([0.0, 0.0, 5.0, 11.0, 12.0])
     monkeypatch.setattr(time, "monotonic", lambda: next(clock))
     monkeypatch.setattr(time, "sleep", lambda _s: None)
-    assert wait_until_back("cam", timeout=10.0, poll=1.0) is None
+    assert wait_until_back("cam", timeout=10.0, poll=1.0, read_timeout=1.0) is None
 
 
 def test_backups_are_private_named_by_local_time_and_pruned(tmp_path: Path) -> None:
@@ -440,3 +441,49 @@ def test_backup_list_orders_same_second_saves_by_mtime_then_name(
     os.utime(directory / first, (1_000_000, 1_000_000))
     os.utime(directory / second, (1_000_100, 1_000_100))
     assert [b.name for b in store.list()] == [second, first]
+
+
+def test_wait_until_back_reads_with_the_read_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[float] = []
+
+    def spy(_address: str, timeout: float) -> None:
+        seen.append(timeout)
+
+    monkeypatch.setattr(camera_config, "fetch", spy)
+    ticks = iter(range(0, 100))
+    monkeypatch.setattr(
+        camera_config,
+        "time",
+        SimpleNamespace(sleep=lambda _s: None, monotonic=lambda: next(ticks)),
+    )
+    assert wait_until_back("cam", timeout=3.0, poll=1.0, read_timeout=7.5) is None
+    assert seen and set(seen) == {7.5}
+
+
+def test_prune_orders_by_name_and_never_deletes_the_protected_copy(
+    tmp_path: Path,
+) -> None:
+    store = BackupStore(tmp_path / "camera" / "backups")
+    directory = tmp_path / "camera" / "backups"
+    when = datetime.datetime(2026, 10, 27, 21, 0, 0).astimezone()
+    names = [store.save(b"x%d" % i, now=when) for i in range(11)]
+    # suffix 10 sorts after suffix 2 numerically, not as text
+    assert names[10].endswith("-10.ini")
+    # a skewed mtime must not make the newest copy look oldest
+    os.utime(directory / names[10], (1_000, 1_000))
+    store.prune(keep=3, protect=names[10])
+    left = sorted(p.name for p in directory.iterdir())
+    assert names[10] in left
+    assert names[9] in left and names[8] in left
+    assert names[0] not in left and len(left) <= 4
+    store.prune(keep=0, protect=names[10])
+    assert [p.name for p in directory.iterdir()] == [names[10]]
+
+
+def test_backup_save_tightens_the_camera_folder(tmp_path: Path) -> None:
+    (tmp_path / "camera").mkdir(mode=0o755)
+    os.chmod(tmp_path / "camera", 0o755)
+    BackupStore(tmp_path / "camera" / "backups").save(b"x")
+    assert _mode(tmp_path / "camera") == 0o700

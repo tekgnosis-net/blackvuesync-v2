@@ -538,6 +538,8 @@ class CameraSettings(_Section):
     verify_timeout_seconds: float = 120.0
     # seconds between read-back attempts while waiting
     verify_poll_seconds: float = 5.0
+    # how long the config upload waits for the camera's answer
+    upload_timeout_seconds: float = 30.0
 
     def _validate_values(self) -> list[str]:
         """validates camera settings; returns a list of error strings."""
@@ -550,6 +552,8 @@ class CameraSettings(_Section):
             errors.append("camera.verify_timeout_seconds must be between 10 and 600")
         if not 1 <= self.verify_poll_seconds <= 30:
             errors.append("camera.verify_poll_seconds must be between 1 and 30")
+        if not 5 <= self.upload_timeout_seconds <= 120:
+            errors.append("camera.upload_timeout_seconds must be between 5 and 120")
         return errors
 
 

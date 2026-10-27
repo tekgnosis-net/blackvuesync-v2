@@ -1419,3 +1419,9 @@ def test_camera_apply_knobs_defaults_and_bounds() -> None:
     assert CameraSettings(verify_poll_seconds=0.5).validate() == [
         "camera.verify_poll_seconds must be between 1 and 30"
     ]
+    assert cam.upload_timeout_seconds == 30.0
+    assert CameraSettings(upload_timeout_seconds=4).validate() == [
+        "camera.upload_timeout_seconds must be between 5 and 120"
+    ]
+    assert CameraSettings(upload_timeout_seconds=121).validate() != []
+    assert CameraSettings(upload_timeout_seconds=120).validate() == []

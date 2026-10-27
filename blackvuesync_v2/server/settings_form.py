@@ -191,6 +191,14 @@ SECTION_FIELD_SPECS: dict[str, tuple[FieldSpec, ...]] = {
             "Verify poll interval (seconds)",
             "number",
             "number",
+            help="seconds between read-back attempts while waiting for the camera (1-30)",
+        ),
+        FieldSpec(
+            "upload_timeout_seconds",
+            "Upload timeout (seconds)",
+            "number",
+            "number",
+            help="how long the settings upload waits for the camera to answer (5-120)",
         ),
     ),
     "web": (
