@@ -380,7 +380,9 @@ class FieldView:
     minimum: int | None = None
     maximum: int | None = None
     maxlength: int | None = None
-    editable: bool = False  # known, writable key: the panes render a control
+    editable: bool = (
+        False  # writable key (unknown keys as text): the panes render a control
+    )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -417,7 +419,7 @@ def _view(section: str, key: str, raw: str, known: bool) -> FieldView:
         minimum=field.minimum,
         maximum=field.maximum,
         maxlength=_TEXT_LIMITS.get((section, key)),
-        editable=known and not field.read_only and field.widget != "readonly",
+        editable=not field.read_only and field.widget != "readonly",
     )
 
 

@@ -129,3 +129,15 @@ def test_settings_page_has_backups_and_review(client: Any, camera: FakeCamera) -
     assert 'data-section-nav="camera-backups"' in html
     assert 'data-pane="camera-backups"' in html
     assert 'id="camera-review"' in html
+
+
+def test_other_and_not_fitted_keys_are_editable(
+    client: Any, camera: FakeCamera
+) -> None:
+    camera.files["/Config/config.ini"] = CONFIG + b"\n[Fancy]\nMode=2\n"
+    html = client.get("/hx/camera/panes").get_data(as_text=True)
+    fancy = _control(html, "Fancy.Mode")
+    assert 'type="text"' in fancy and 'data-original="2"' in fancy
+    assert 'type="number"' in _control(html, "Tab3.DsmVolume")
+    assert 'data-camera-key="Tab1.RecordTime"' not in html
+    assert 'data-camera-key="Cloud.CloudSettingVersion"' not in html

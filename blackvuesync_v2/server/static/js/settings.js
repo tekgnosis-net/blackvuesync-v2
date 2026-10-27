@@ -66,7 +66,7 @@ function collectFields(root) {
 document.addEventListener("alpine:init", () => {
   Alpine.data("settingsPage", () => ({
     current: "",
-    review: { kind: "changes", changes: {}, name: "", busy: false, done: false },
+    review: { kind: "changes", changes: {}, name: "", busy: false, checking: false, done: false },
 
     init() {
       // without js, all panes show (one scroll); js-nav switches to single-pane.
@@ -100,6 +100,10 @@ document.addEventListener("alpine:init", () => {
         if (restore) this.openRestoreReview(restore.dataset.restore);
       });
       this.reviewDialog().addEventListener("change", () => this.syncApply());
+      // Esc must not hide the result of an apply in flight
+      this.reviewDialog().addEventListener("cancel", (ev) => {
+        if (this.review.busy) ev.preventDefault();
+      });
       globalThis.addEventListener("beforeunload", (ev) => {
         if (this.cameraChanges().count > 0) {
           ev.preventDefault();
@@ -228,7 +232,7 @@ document.addEventListener("alpine:init", () => {
       this.reviewPart("data-review-rows").replaceChildren();
       this.reviewPart("data-review-cancel").textContent = "Cancel";
       this.reviewPart("data-review-cancel").disabled = false;
-      this.review = { kind: "changes", changes: {}, name: "", busy: false, done: false };
+      this.review = { kind: "changes", changes: {}, name: "", busy: false, checking: false, done: false };
     },
 
     // fills the table, shows warnings, and asks the camera how many recordings
@@ -296,7 +300,19 @@ document.addEventListener("alpine:init", () => {
 
     // shows the erase warning and the pending count. force reveals the block
     // even when nothing is pending; otherwise it appears only when needed.
+    // runs the pending check with Apply held back until it finishes.
     async checkPending(force) {
+      this.review.checking = true;
+      this.syncApply();
+      try {
+        await this.fetchPending(force);
+      } finally {
+        this.review.checking = false;
+        this.syncApply();
+      }
+    },
+
+    async fetchPending(force) {
       if (force) this.reviewPart("data-review-format").hidden = false;
       let pending = null;
       try {
@@ -343,7 +359,7 @@ document.addEventListener("alpine:init", () => {
       const apply = this.reviewPart("data-review-apply");
       const format = this.reviewPart("data-review-format");
       const loss = this.reviewPart("data-review-loss");
-      let ok = !this.review.busy && !this.review.done;
+      let ok = !this.review.busy && !this.review.checking && !this.review.done;
       if (!format.hidden && !this.reviewPart("data-confirm-format").checked) ok = false;
       if (!loss.hidden && !this.reviewPart("data-accept-loss").checked) ok = false;
       apply.disabled = !ok;
