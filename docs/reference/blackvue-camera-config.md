@@ -45,6 +45,10 @@ four digits (`930` becomes `0930`, `-930` becomes `-0930`). `Tab1.SetTime` is a 
   boundary, so the stored file equals the sent bytes and repeated uploads do
   not grow it. Every upload answered 200 within 0.1 s; the camera kept
   serving HTTP (no restart) and the recording list was unchanged (no format).
+  A `Tab3.VOLUME` change through the apply pipeline verified in 0.2 s and
+  showed the new value on the next read. Only the time settings (time zone,
+  daylight saving) and the image-quality keys restart the camera, and those
+  also format the card (the `FORMAT_KEYS` the review dialog warns about).
 
 ## Port 9771
 

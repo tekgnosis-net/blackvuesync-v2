@@ -53,8 +53,10 @@ Passwords only show that they changed. Select **Apply** and the app:
 1. reads the camera's current `config.ini` again, so it never overwrites a
    change made in the BlackVue app a moment ago;
 2. saves that file as a backup;
-3. uploads the patched file to the camera (a DR900X Plus on firmware 1.015
-   keeps answering; other models may restart);
+3. uploads the patched file to the camera. Most changes take effect without
+   a restart (a volume change on a DR900X Plus verified in 0.2 s); the time
+   settings and image quality restart the camera and format its card, see
+   [below](#settings-that-erase-recordings);
 4. waits for the camera to answer again and reads the settings back,
    comparing both the values and the file's bytes.
 
@@ -109,9 +111,9 @@ running" and nothing is changed; try again when it finishes.
 ## Settings that erase recordings
 
 Settings marked **erases camera recordings** (the time settings and image
-quality) make the camera format its microSD card when they are changed: the
-BlackVue manual says it deletes all recordings on the card, locked events
-included. This is a warning you can accept, not a block, because changing
+quality) make the camera restart and format its microSD card when they are
+changed: the BlackVue manual says it deletes all recordings on the card,
+locked events included. They are the only settings that restart the camera. This is a warning you can accept, not a block, because changing
 the time zone is a legitimate thing to do.
 
 When you stage one of these, the review dialog shows a red warning and counts
