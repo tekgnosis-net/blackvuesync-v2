@@ -7,6 +7,7 @@ import email.message
 import http.client
 import logging
 import os
+import pathlib
 import stat
 import time
 import urllib.error
@@ -369,6 +370,12 @@ def test_framed_matches_what_the_camera_stores() -> None:
     assert framed(framed(raw)) == framed(raw)
     assert framed(b"[Tab1]\nVOLUME=4\n") == b"[Tab1]\nVOLUME=4\r\n\r\n"
     assert framed(b"[Tab1]\nVOLUME=4") == b"[Tab1]\nVOLUME=4\r\n\r\n"
+    # the behave mock dashcam repeats the rule inline (it runs without the package)
+    mock = pathlib.Path(__file__).parents[1] / "features" / "mock_dashcam" / "server.py"
+    assert (
+        'stored = data if data.endswith(b"\\r\\n\\r\\n") else data[:-2]'
+        in mock.read_text()
+    )
 
 
 def test_upload_failures_raise_upload_error(monkeypatch: pytest.MonkeyPatch) -> None:
