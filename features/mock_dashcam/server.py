@@ -15,6 +15,7 @@ from typing import Any
 import flask
 import requests
 
+from blackvuesync_v2.server.camera_config import stored_by_camera
 from features.lib.recordings import generate_recording_filenames
 
 # logger for mock dashcam
@@ -297,15 +298,24 @@ class MockDashcam:
 
         @self.app.route("/upload.cgi", methods=["POST"])
         def upload_cgi() -> tuple[str, int]:
-            """stores an uploaded config.ini like the camera does"""
+            """stores an uploaded config.ini like the camera does.
+
+            the camera does not parse the closing boundary (the client sends
+            none), so the part is cut out by hand and stored through
+            camera_config.stored_by_camera rather than by werkzeug.
+            """
             logger.debug("POST /upload.cgi")
-            if flask.request.form.get("FileType") != "config":
+            body = flask.request.get_data()
+            if b'name="FileType"\r\n\r\nconfig\r\n' not in body:
                 flask.abort(400, description="FileType=config is required")
-            uploaded = flask.request.files.get("FileData")
-            if uploaded is None:
+            marker = body.find(b'name="FileData"')
+            if marker < 0:
                 flask.abort(400, description="FileData is required")
+            start = body.index(b"\r\n\r\n", marker) + 4
             with self._sessions_lock:
-                self._config_by_session[self._config_key()] = uploaded.read()
+                self._config_by_session[self._config_key()] = stored_by_camera(
+                    body[start:]
+                )
             return "OK", 200
 
         @self.app.route("/mock/downloads/errors", methods=["DELETE"])

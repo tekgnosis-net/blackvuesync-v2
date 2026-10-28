@@ -19,9 +19,11 @@ Colomba; their numbers refer to upstream pull requests.
 * Camera settings are now editable from **Settings → Camera**. Edits are
   staged, counted in an apply bar and checked in a **Review & apply** dialog.
   Applying reads the camera's `config.ini` fresh, saves a backup, uploads the
-  patched file, waits for the camera to restart and verifies the result,
-  reporting "applied and verified" or the keys the camera kept its own value
-  for. See the
+  patched file, waits for the camera to answer and verifies the result by
+  value and by byte, reporting "applied and verified" or the keys the camera
+  kept its own value for. The upload is framed the way the camera's firmware
+  stores it unchanged (a standard multipart closing boundary ends up inside
+  the file on a DR900X Plus). See the
   [guide](https://tekgnosis-net.github.io/blackvuesync-v2/guide/camera-settings/).
 * Time and image-quality settings make the camera format its card. The review
   dialog now warns, counts the recordings not yet downloaded, and requires

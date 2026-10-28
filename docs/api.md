@@ -584,7 +584,8 @@ and are encoded for you). `confirm_format` and `accept_loss` default to
 
 ```json
 {"verified": true, "came_back": true, "kept": [], "backup": "config-20261027-101500.ini",
- "changed": ["Tab3.VOLUME", "Wifi.ap_pw (changed)"], "upload_confirmed": true}
+ "changed": ["Tab3.VOLUME", "Wifi.ap_pw (changed)"], "upload_confirmed": true,
+ "file_exact": true}
 ```
 
 `upload_confirmed` is false when the connection dropped before the camera
@@ -596,7 +597,10 @@ The upload waits `camera.upload_timeout_seconds` (default 30).
 `verified` is true when the camera came back and holds every value. When it
 came back but replaced some values, `verified` is false and `kept` lists those
 keys. When it did not answer within the window, `came_back` is false (and
-`kept` is empty).
+`kept` is empty). `file_exact` is true when the file read back is
+byte-for-byte what was sent (the file plus one trailing blank line, the form
+the camera stores unchanged); false means the firmware rewrote the file even
+if every value matches, and is always false when the camera did not come back.
 
 The format gate: when `changes` includes a key that makes the camera format
 its card (the `formats_card` fields: the time settings and image quality),

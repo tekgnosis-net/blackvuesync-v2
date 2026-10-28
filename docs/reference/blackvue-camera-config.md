@@ -35,6 +35,16 @@ four digits (`930` becomes `0930`, `-930` becomes `-0930`). `Tab1.SetTime` is a 
   (values `config`, `version`, `fwupgrade`) and a file field `FileData`.
 - The BlackVue app sends only `FileType=config` with a file named
   `config.ini`. The same endpoint accepts firmware, which the app never sends.
+- The camera's multipart parser does not look for the closing boundary.
+  Observed on a DR900X Plus (firmware 1.015, 2026-10-29) by uploading the
+  camera's own file five times: a standard body ending in
+  `CRLF--boundary--CRLF` leaves the boundary line in the stored file; the
+  camera keeps the part data minus its last two bytes, unless the data ends in
+  `CRLF CRLF`, which it keeps whole. BlackVue Sync v2 therefore sends the file
+  with any trailing line breaks replaced by `CRLF CRLF` and no closing
+  boundary, so the stored file equals the sent bytes and repeated uploads do
+  not grow it. Every upload answered 200 within 0.1 s; the camera kept
+  serving HTTP (no restart) and the recording list was unchanged (no format).
 
 ## Port 9771
 

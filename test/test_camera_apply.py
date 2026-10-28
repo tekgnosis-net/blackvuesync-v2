@@ -33,6 +33,7 @@ class FakeCamera:
         self.upload_status = 200
         self.uploads: list[bytes] = []
         self.clamp: dict[tuple[str, str], str] = {}  # values the firmware forces
+        self.rewrite_tail = b""  # bytes the firmware appends to the stored file
 
     def get(self, url: str, timeout: float) -> bytes | None:
         path = url.split("192.0.2.10", 1)[1]
@@ -49,7 +50,7 @@ class FakeCamera:
         if self.upload_status != 200:
             raise camera_config.UploadError("boom", status=self.upload_status)
         start = body.index(b"\r\n\r\n", body.index(b'filename="config.ini"')) + 4
-        raw = body[start : body.rindex(b"\r\n--")]
+        raw = camera_config.stored_by_camera(body[start:]) + self.rewrite_tail
         self.uploads.append(raw)
         new = raw
         for (section, key), value in self.clamp.items():
@@ -132,9 +133,13 @@ def test_apply_patches_backs_up_uploads_and_verifies(
         store, {"Tab3.VOLUME": "4", "Cloud.sta2_ssid": "Shed"}, False
     )
     assert result.verified and result.came_back and result.kept == []
+    assert result.file_exact
+    # the camera stores exactly the framed file, so a second apply sends the same bytes
+    assert camera.config == camera_config.framed(camera.uploads[0])
     assert sorted(result.changed) == ["Cloud.sta2_ssid", "Tab3.VOLUME"]
     assert camera_config.parse(camera.config).value("Tab3", "VOLUME") == "4"
-    assert camera.uploads[0].count(b"\n") == CONFIG.count(b"\n")
+    # one blank line more than the fixture: the framing the camera keeps intact
+    assert camera.uploads[0].count(b"\n") == CONFIG.count(b"\n") + 1
     backups = camera_config.BackupStore(store.path.parent / "camera" / "backups")
     assert [b.name for b in backups.list()] == [result.backup]
     assert backups.read(result.backup) == CONFIG
@@ -154,12 +159,22 @@ def test_apply_survives_a_reboot_and_reports_kept_values(
     assert snapshot is not None and snapshot.config.value("Tab3", "VOLUME") == "7"
 
 
+def test_apply_reports_a_rewritten_file(
+    store: SettingsStore, camera: FakeCamera
+) -> None:
+    # every value matches but the firmware appended to the file
+    camera.rewrite_tail = b"junk\r\n"
+    result = camera_apply.apply_changes(store, {"Tab3.VOLUME": "4"}, False)
+    assert result.verified and result.came_back and result.kept == []
+    assert not result.file_exact
+
+
 def test_apply_reports_a_camera_that_never_returns(
     store: SettingsStore, camera: FakeCamera
 ) -> None:
     camera.reboot_reads = 10_000
     result = camera_apply.apply_changes(store, {"Tab3.VOLUME": "4"}, False)
-    assert not result.came_back and not result.verified
+    assert not result.came_back and not result.verified and not result.file_exact
 
 
 def test_apply_refusals(store: SettingsStore, camera: FakeCamera) -> None:
@@ -424,7 +439,7 @@ def test_upload_preserves_every_other_byte(
     camera_apply.apply_changes(store, {"Tab3.VOLUME": "4"}, False)
     expected = re.sub(rb"(?m)^(VOLUME=)[^\r\n]*", rb"\g<1>4", CONFIG, count=1)
     assert expected != CONFIG
-    assert camera.uploads == [expected]
+    assert camera.uploads == [camera_config.framed(expected)]
 
 
 def test_apply_continues_when_the_upload_answer_is_lost(

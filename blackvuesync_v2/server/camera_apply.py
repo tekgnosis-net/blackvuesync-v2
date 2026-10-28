@@ -58,6 +58,9 @@ class ApplyResult:
     # false when the upload's answer was lost; the result is then what the
     # camera reports afterwards
     upload_confirmed: bool = True
+    # false when the read-back file differs from the bytes sent (values may
+    # still all match): the camera rewrote the file, see camera_config.framed
+    file_exact: bool = True
 
 
 def _lock_refusal() -> ApplyRefused:
@@ -186,6 +189,19 @@ def _kept(back: camera_config.CameraRead, changes: Changes) -> list[str]:
     ]
 
 
+def _file_exact(back: camera_config.CameraRead, patched: bytes) -> bool:
+    """True when the camera holds exactly the bytes sent; logs when it rewrote them."""
+    sent = camera_config.framed(patched)
+    if back.config.raw == sent:
+        return True
+    logger.warning(
+        "camera rewrote the uploaded file: sent %d bytes, read back %d",
+        len(sent),
+        len(back.config.raw),
+    )
+    return False
+
+
 def _apply(
     store: SettingsStore,
     settings: Settings,
@@ -218,13 +234,15 @@ def _apply(
     )
     if back is None:
         logger.warning("camera did not come back within the verify window")
-        return ApplyResult(False, False, [], backup, changed, confirmed)
+        return ApplyResult(False, False, [], backup, changed, confirmed, False)
     try:
         CameraStore(store.path.parent / "camera").save(back)
     except OSError as error:
         logger.warning("could not save the camera snapshot: %s", error)
     kept = _kept(back, changes)
-    return ApplyResult(not kept, True, kept, backup, changed, confirmed)
+    return ApplyResult(
+        not kept, True, kept, backup, changed, confirmed, _file_exact(back, patched)
+    )
 
 
 def apply_changes(

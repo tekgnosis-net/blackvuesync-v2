@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import dataclasses
-import email
 import http.server
 import os
 import threading
@@ -16,6 +15,7 @@ from werkzeug.serving import make_server
 
 from blackvuesync_v2.server import create_app, sse
 from blackvuesync_v2.server.auth import hash_password
+from blackvuesync_v2.server.camera_config import stored_by_camera
 from blackvuesync_v2.settings import SettingsStore
 
 
@@ -102,14 +102,11 @@ class FakeCameraServer:
                 if outer.drop_uploads:
                     self.close_connection = True
                     return
-                head = b"Content-Type: " + self.headers["Content-Type"].encode()
-                message = email.message_from_bytes(head + b"\r\n\r\n" + body)
-                for part in message.walk():
-                    disposition = part.get("Content-Disposition", "")
-                    if 'name="FileData"' in disposition:
-                        payload = part.get_payload(decode=True)
-                        if isinstance(payload, bytes):
-                            outer.config = payload
+                # cut out like the camera does: no closing boundary is parsed
+                marker = body.find(b'name="FileData"')
+                if marker >= 0:
+                    start = body.index(b"\r\n\r\n", marker) + 4
+                    outer.config = stored_by_camera(body[start:])
                 self._reply(200, b"")
 
             def log_message(self, *_args: Any) -> None:

@@ -452,7 +452,12 @@ document.addEventListener("alpine:init", () => {
           "(backup " + data.backup + ")."
         );
       }
-      if (data.verified) {
+      if (data.verified && data.file_exact === false) {
+        parts.push(
+          "Applied: the camera holds every value you set, but it rewrote the " +
+            "file, so the next read may show differences (backup " + data.backup + ")."
+        );
+      } else if (data.verified) {
         parts.push("Applied and verified (backup " + data.backup + ").");
       } else if (data.came_back) {
         parts.push("Applied, but the camera's settings could not be verified (backup " + data.backup + ").");

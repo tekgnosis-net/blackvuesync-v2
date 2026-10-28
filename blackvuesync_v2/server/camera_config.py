@@ -364,8 +364,37 @@ def _post(url: str, body: bytes, content_type: str, timeout: float) -> int:
         raise UploadError(f"upload failed: {error}") from error
 
 
+def framed(raw: bytes) -> bytes:
+    """returns the bytes the camera stores for raw: the file plus one blank line.
+
+    the DR900X Plus (firmware 1.015) ignores the multipart closing boundary and
+    keeps the part data minus its last two bytes, unless the data ends with
+    CRLF CRLF, which it keeps whole (see stored_by_camera). sending exactly this
+    form makes the stored file equal to the sent bytes, and sending the stored
+    file again produces the same bytes, so repeated applies never grow it.
+    """
+    return raw.rstrip(b"\r\n") + b"\r\n\r\n"
+
+
+def stored_by_camera(data: bytes) -> bytes:
+    """models what the camera keeps of an uploaded FileData part (observed
+    2026-10-29 on a DR900X Plus, firmware 1.015, five uploads).
+
+    a standard body ending in CRLF--boundary--CRLF left the boundary line in
+    the file: the camera only drops the final two bytes. the mock cameras use
+    this so the test suites see the real framing.
+    """
+    if data.endswith(b"\r\n\r\n"):
+        return data
+    return data[:-2]
+
+
 def upload(address: str, raw: bytes, timeout: float) -> int:
-    """uploads raw as the camera's config.ini (upload.cgi, FileType=config)."""
+    """uploads raw as the camera's config.ini (upload.cgi, FileType=config).
+
+    the body carries no closing boundary: the camera does not parse one and
+    would store it as part of the file (see framed).
+    """
     boundary = "----blackvuesync-" + uuid.uuid4().hex
     bound = boundary.encode()
     body = b"".join(
@@ -375,8 +404,7 @@ def upload(address: str, raw: bytes, timeout: float) -> int:
             b"--" + bound + b"\r\n",
             b'Content-Disposition: form-data; name="FileData"; filename="config.ini"\r\n',
             b"Content-Type: application/octet-stream\r\n\r\n",
-            raw,
-            b"\r\n--" + bound + b"--\r\n",
+            framed(raw),
         ]
     )
     return _post(

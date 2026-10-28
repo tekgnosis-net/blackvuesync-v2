@@ -53,14 +53,20 @@ Passwords only show that they changed. Select **Apply** and the app:
 1. reads the camera's current `config.ini` again, so it never overwrites a
    change made in the BlackVue app a moment ago;
 2. saves that file as a backup;
-3. uploads the patched file to the camera, which then restarts;
-4. waits for the camera to answer again and reads the settings back.
+3. uploads the patched file to the camera (a DR900X Plus on firmware 1.015
+   keeps answering; other models may restart);
+4. waits for the camera to answer again and reads the settings back,
+   comparing both the values and the file's bytes.
 
 This takes up to `camera.verify_timeout_seconds` (default two minutes; see
 [Configuration](configuration.md#camera-access)). The dialog then reports one
 of these outcomes:
 
-* **Applied and verified**: the camera came back and holds every value you set.
+* **Applied and verified**: the camera came back and holds every value you
+  set, and its file is exactly what the app sent.
+* **Applied: the camera holds every value you set, but it rewrote the file**:
+  the values are right, but the firmware changed the file's bytes elsewhere,
+  so the next read of the Camera pane may show differences.
 * **Applied, but the camera's settings could not be verified**, with
   **The camera kept its own value for:** and a list of keys: the camera came
   back but its firmware changed or rejected those values. The other changes

@@ -29,11 +29,13 @@ from blackvuesync_v2.server.camera_config import (
     VersionInfo,
     diff,
     fetch,
+    framed,
     parse,
     parse_version,
     patch,
     safe_text,
     self_check,
+    stored_by_camera,
     upload,
     wait_until_back,
 )
@@ -347,11 +349,26 @@ def test_upload_posts_a_multipart_config(monkeypatch: pytest.MonkeyPatch) -> Non
     assert content_type.startswith("multipart/form-data; boundary=")
     boundary = content_type.split("boundary=", 1)[1].encode()
     body = cast(bytes, seen["body"])
-    assert body.count(b"--" + boundary) == 3  # two parts plus the closing line
+    assert body.count(b"--" + boundary) == 2  # two parts, no closing line
     assert b'name="FileType"\r\n\r\nconfig\r\n' in body
     assert b'name="FileData"; filename="config.ini"' in body
-    assert b"\r\n\r\n[Tab1]\nVOLUME=4\n\r\n" in body
-    assert body.endswith(b"--" + boundary + b"--\r\n")
+    # the file goes last, in the form the camera stores unchanged
+    assert body.endswith(b"\r\n\r\n[Tab1]\nVOLUME=4\r\n\r\n")
+    assert body.endswith(b"\r\n\r\n" + framed(b"[Tab1]\nVOLUME=4\n"))
+
+
+def test_framed_matches_what_the_camera_stores() -> None:
+    # the five uploads observed on the DR900X Plus (firmware 1.015)
+    raw = b"[Tab1]\r\nVOLUME=4\r\n"
+    closing = raw + b"\r\n--boundary--\r\n"
+    assert stored_by_camera(closing) == raw + b"\r\n--boundary--"
+    assert stored_by_camera(raw + b"\r\n") == raw + b"\r\n"
+    assert stored_by_camera(raw) == raw[:-2]
+    # the framing used by upload() survives the camera and is idempotent
+    assert stored_by_camera(framed(raw)) == framed(raw)
+    assert framed(framed(raw)) == framed(raw)
+    assert framed(b"[Tab1]\nVOLUME=4\n") == b"[Tab1]\nVOLUME=4\r\n\r\n"
+    assert framed(b"[Tab1]\nVOLUME=4") == b"[Tab1]\nVOLUME=4\r\n\r\n"
 
 
 def test_upload_failures_raise_upload_error(monkeypatch: pytest.MonkeyPatch) -> None:

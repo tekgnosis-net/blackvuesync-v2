@@ -302,10 +302,14 @@ application, structured as follows:
   key); the only module that imports `cryptography`.
 - `camera_config.py` -- reads `config.ini` / `version.bin` without rewriting
   them, keeps the 0700/0600 snapshot under `<settings dir>/camera/` and diffs
-  successive reads.
+  successive reads. `upload()` frames the file the way the camera's parser
+  stores it unchanged (`framed()`: trailing line breaks become CRLF CRLF, no
+  closing boundary); `stored_by_camera()` models that parser for the mock
+  cameras in `test/` and `features/`.
 - `camera_apply.py` -- the apply pipeline: fresh read, format gate, patch and
   self-check, backup (`<settings dir>/camera/backups/`, rotated by
-  `camera.backup_count`), upload, `wait_until_back`, verify. It holds the sync
+  `camera.backup_count`), upload, `wait_until_back`, verify by value (`kept`)
+  and by byte (`file_exact`, against `camera_config.framed`). It holds the sync
   lock through `sync_runner.try_hold_sync_lock()` (a non-blocking context
   manager yielding False while a sync runs, so apply answers 409
   `SYNC_RUNNING` and a scheduled sync is skipped meanwhile). The format gate

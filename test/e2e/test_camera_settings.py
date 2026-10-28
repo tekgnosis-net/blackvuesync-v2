@@ -11,6 +11,8 @@ pytest.importorskip("playwright.sync_api")
 
 from playwright.sync_api import Page, expect  # noqa: E402
 
+from blackvuesync_v2.server.camera_config import framed
+
 pytestmark = pytest.mark.e2e
 
 MASK = "•" * 8
@@ -228,7 +230,8 @@ def test_backups_pane_lists_and_restores(
     dialog.locator("[data-review-apply]").click()
     expect(dialog).to_have_attribute("data-state", "done")
     expect(dialog.locator("[data-review-result]")).to_contain_text("Applied")
-    assert fake_camera.config == FIXTURE.read_bytes()
+    # the restored file in the form the camera keeps: one trailing blank line
+    assert fake_camera.config == framed(FIXTURE.read_bytes())
 
 
 @pytest.mark.usefixtures("fake_camera")
