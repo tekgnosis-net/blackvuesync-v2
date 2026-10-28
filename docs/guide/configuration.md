@@ -114,9 +114,15 @@ would delete.
 
 ### Camera access
 
+These control editing as well as reading; see [Camera settings](camera-settings.md).
+
 | Field | Default | Description |
 | --- | --- | --- |
 | `read_timeout_seconds` | `3` | How long the Camera settings panes wait for the dashcam (0.5-30). When it doesn't answer in time, they show the last-known settings. |
+| `backup_count` | `10` | How many copies of the camera's `config.ini` are kept before each change (1-100). Backups go in the `camera/backups/` folder next to `settings.json`. |
+| `verify_timeout_seconds` | `120` | How long a change waits for the camera to answer after the upload, since it may reboot (10-600). |
+| `verify_poll_seconds` | `5` | Seconds between read-back attempts while waiting for the camera (1-30). |
+| `upload_timeout_seconds` | `30` | How long the upload of the changed file waits for the camera's answer (5-120). If the answer is lost, the change continues to the verify step instead of failing. |
 
 ### Web
 
@@ -166,6 +172,7 @@ sessions** in the Auth section.
 | `VERBOSE`, `QUIET`, `LOG_FORMAT` | `logging.*` (`QUIET` accepts `1`, `true`, `yes`) |
 | `METRICS_FILE`, `METRICS_PUSHGATEWAY_URL`, `METRICS_JOB`, `METRICS_INSTANCE`, `METRICS_STATE_FILE` | `metrics.*` |
 | `STATS_RETENTION_DAYS` | `stats.retention_days` |
+| `CAMERA_READ_TIMEOUT`, `CAMERA_BACKUP_COUNT`, `CAMERA_VERIFY_TIMEOUT`, `CAMERA_VERIFY_POLL`, `CAMERA_UPLOAD_TIMEOUT` | `camera.*` (see [Camera settings](camera-settings.md)) |
 | `BLACKVUESYNC_PORT` | `web.port` |
 | `BLACKVUESYNC_ADMIN_USERNAME` | `auth.username` |
 | `BLACKVUESYNC_ADMIN_PASSWORD` | Hashed into `auth.password_hash` if at least 12 characters; skips the first-run page. Remove it from your compose file afterwards. |

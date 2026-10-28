@@ -35,3 +35,13 @@ Step definition methods must be concise and follow this pattern:
 - Then: `assert_` followed by the condition being asserted
 
 Step definition methods must be ordered by `@given`, `@when`, `@then`.
+
+## Mock dashcam camera routes
+
+Besides recordings, `features/mock_dashcam/server.py` serves the camera's
+settings routes: `GET /Config/config.ini` and `GET /Config/version.bin` (an
+invented file), `POST /upload.cgi` (multipart with `FileType=config` and
+`FileData`; replaces the served config like the camera does) and
+`POST /mock/config` (seeds the served `config.ini`). `camera_config` sends no
+`X-Affinity-Key` header, so these routes fall back to a shared `default`
+bucket when the header is absent; a client that sends a key gets its own.

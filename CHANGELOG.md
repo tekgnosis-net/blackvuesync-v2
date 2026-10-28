@@ -12,6 +12,42 @@ repository. Versions 2.2.0 and earlier are the upstream
 [BlackVue Sync](https://github.com/acolomba/blackvuesync) by Alessandro
 Colomba; their numbers refer to upstream pull requests.
 
+## Unreleased
+
+### Added
+
+* Camera settings are now editable from **Settings → Camera**. Edits are
+  staged, counted in an apply bar and checked in a **Review & apply** dialog.
+  Applying reads the camera's `config.ini` fresh, saves a backup, uploads the
+  patched file, waits for the camera to answer and verifies the result by
+  value and by byte, reporting "applied and verified" or the keys the camera
+  kept its own value for. The upload is framed the way the camera's firmware
+  stores it unchanged (a standard multipart closing boundary ends up inside
+  the file on a DR900X Plus). See the
+  [guide](https://tekgnosis-net.github.io/blackvuesync-v2/guide/camera-settings/).
+* Time and image-quality settings make the camera format its card. The review
+  dialog now warns, counts the recordings not yet downloaded, and requires
+  ticking two confirmations (`confirm_format`, `accept_loss`) before applying.
+  It is a warning, not a block.
+* A **Backups** pane lists the copies of `config.ini` saved before every apply
+  (in `camera/backups/` next to `settings.json`) and restores one through the
+  same review.
+* Applying holds the sync lock: a scheduled sync is skipped meanwhile, and
+  applying is refused (`SYNC_RUNNING`) while a sync runs.
+* The camera knobs can be seeded on first start with `CAMERA_READ_TIMEOUT`,
+  `CAMERA_BACKUP_COUNT`, `CAMERA_VERIFY_TIMEOUT`, `CAMERA_VERIFY_POLL` and
+  `CAMERA_UPLOAD_TIMEOUT`, like the other sections.
+* New settings `camera.backup_count`, `camera.verify_timeout_seconds`,
+  `camera.verify_poll_seconds` and `camera.upload_timeout_seconds`.
+* New endpoints `GET /api/camera/pending`, `POST /api/camera/config`,
+  `GET /api/camera/backups`, `GET /api/camera/backups/<name>` (a restore
+  preview) and `POST /api/camera/backups/<name>/restore`.
+* A dropped upload answer no longer fails an apply: it continues to the verify
+  step and reports `upload_confirmed: false`. A second apply while one runs is
+  refused with `APPLY_RUNNING`.
+* The time zone is a validated offset text field (-1200 to +1400), and a
+  restore never writes read-only keys.
+
 ## 3.2.2 - 2026-10-27
 
 ### Fixed

@@ -3,28 +3,42 @@
 from __future__ import annotations
 
 import datetime
+import email.message
 import http.client
 import logging
 import os
+import pathlib
 import stat
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
 from blackvuesync_v2.server import camera_config
 from blackvuesync_v2.server.camera_config import (
     GENERAL_SECTION,
+    BackupStore,
     CameraRead,
     CameraStore,
     Change,
+    PatchError,
+    UploadError,
     VersionInfo,
     diff,
     fetch,
+    framed,
     parse,
     parse_version,
+    patch,
     safe_text,
+    self_check,
+    stored_by_camera,
+    upload,
+    wait_until_back,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "camera"
@@ -282,3 +296,217 @@ def test_failed_save_cleans_up_its_temp_file(
     with pytest.raises(OSError):
         store.save(_read())
     assert list((tmp_path / "camera").glob("*.tmp")) == []
+
+
+def test_patch_rewrites_only_the_changed_values() -> None:
+    raw = b"[Tab1]\r\nVOLUME = 5\r\n[Wifi]\r\nap_ssid=Cam\r\nVOLUME=1\r\n"
+    out = patch(raw, {("Tab1", "VOLUME"): "4", ("Wifi", "ap_ssid"): "Cam2"})
+    assert out == b"[Tab1]\r\nVOLUME = 4\r\n[Wifi]\r\nap_ssid=Cam2\r\nVOLUME=1\r\n"
+    assert patch(CONFIG, {}) == CONFIG
+
+
+def test_patch_keeps_every_other_byte_of_the_fixture() -> None:
+    out = patch(CONFIG, {("Tab3", "VOLUME"): "4"})
+    assert out.count(b"\n") == CONFIG.count(b"\n")
+    assert parse(out).value("Tab3", "VOLUME") == "4"
+    assert [e for e in parse(out).entries if e.key != "VOLUME"] == [
+        e for e in parse(CONFIG).entries if e.key != "VOLUME"
+    ]
+
+
+def test_patch_refuses_missing_duplicate_and_control_characters() -> None:
+    """review focus 1: a duplicated key is ambiguous, so nothing is written."""
+    with pytest.raises(PatchError):
+        patch(b"[Tab1]\nVOLUME=5\n", {("Tab1", "Missing"): "1"})
+    with pytest.raises(PatchError):
+        patch(b"[Tab1]\nVOLUME=5\nVOLUME=6\n", {("Tab1", "VOLUME"): "4"})
+    with pytest.raises(PatchError):
+        patch(b"[Tab1]\nVOLUME=5\n", {("Tab1", "VOLUME"): "4\n[Wifi]\nap_pw=x"})
+    for sep in ("\u0085", "\u2028", "\u2029"):
+        with pytest.raises(PatchError):
+            patch(b"[Tab1]\nVOLUME=5\n", {("Tab1", "VOLUME"): f"4{sep}x"})
+
+
+def test_self_check_catches_a_tampered_patch() -> None:
+    before = b"[Tab1]\nVOLUME=5\nRECLED=1\n"
+    self_check(before, b"[Tab1]\nVOLUME=4\nRECLED=1\n", {("Tab1", "VOLUME"): "4"})
+    with pytest.raises(PatchError):
+        self_check(before, b"[Tab1]\nVOLUME=4\nRECLED=0\n", {("Tab1", "VOLUME"): "4"})
+    with pytest.raises(PatchError):
+        self_check(before, b"[Tab1]\nVOLUME=5\nRECLED=1\n", {("Tab1", "VOLUME"): "4"})
+
+
+def test_upload_posts_a_multipart_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_post(url: str, body: bytes, content_type: str, timeout: float) -> int:
+        seen.update(url=url, body=body, content_type=content_type, timeout=timeout)
+        return 200
+
+    monkeypatch.setattr(camera_config, "_post", fake_post)
+    assert upload("cam", b"[Tab1]\nVOLUME=4\n", 9.0) == 200
+    assert seen["url"] == "http://cam/upload.cgi"
+    content_type = str(seen["content_type"])
+    assert content_type.startswith("multipart/form-data; boundary=")
+    boundary = content_type.split("boundary=", 1)[1].encode()
+    body = cast(bytes, seen["body"])
+    assert body.count(b"--" + boundary) == 2  # two parts, no closing line
+    assert b'name="FileType"\r\n\r\nconfig\r\n' in body
+    assert b'name="FileData"; filename="config.ini"' in body
+    # the file goes last, in the form the camera stores unchanged
+    assert body.endswith(b"\r\n\r\n[Tab1]\nVOLUME=4\r\n\r\n")
+    assert body.endswith(b"\r\n\r\n" + framed(b"[Tab1]\nVOLUME=4\n"))
+
+
+def test_framed_matches_what_the_camera_stores() -> None:
+    # the five uploads observed on the DR900X Plus (firmware 1.015)
+    raw = b"[Tab1]\r\nVOLUME=4\r\n"
+    closing = raw + b"\r\n--boundary--\r\n"
+    assert stored_by_camera(closing) == raw + b"\r\n--boundary--"
+    assert stored_by_camera(raw + b"\r\n") == raw + b"\r\n"
+    assert stored_by_camera(raw) == raw[:-2]
+    # the framing used by upload() survives the camera and is idempotent
+    assert stored_by_camera(framed(raw)) == framed(raw)
+    assert framed(framed(raw)) == framed(raw)
+    assert framed(b"[Tab1]\nVOLUME=4\n") == b"[Tab1]\nVOLUME=4\r\n\r\n"
+    assert framed(b"[Tab1]\nVOLUME=4") == b"[Tab1]\nVOLUME=4\r\n\r\n"
+    # the behave mock dashcam repeats the rule inline (it runs without the package)
+    mock = pathlib.Path(__file__).parents[1] / "features" / "mock_dashcam" / "server.py"
+    assert (
+        'stored = data if data.endswith(b"\\r\\n\\r\\n") else data[:-2]'
+        in mock.read_text()
+    )
+
+
+def test_upload_failures_raise_upload_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def refuse(*_args: Any, **_kwargs: Any) -> Any:
+        raise urllib.error.HTTPError(
+            "http://cam/upload.cgi", 500, "boom", email.message.Message(), None
+        )
+
+    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+    with pytest.raises(UploadError) as caught:
+        upload("cam", b"x", 1.0)
+    assert caught.value.status == 500
+
+    def drop(*_args: Any, **_kwargs: Any) -> Any:
+        raise http.client.RemoteDisconnected("closed")
+
+    monkeypatch.setattr(urllib.request, "urlopen", drop)
+    with pytest.raises(UploadError) as caught2:
+        upload("cam", b"x", 1.0)
+    assert caught2.value.status is None
+
+
+def test_wait_until_back_polls_until_the_camera_answers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    answers = iter([None, None, CONFIG])
+    monkeypatch.setattr(
+        camera_config,
+        "_get",
+        lambda url, _timeout: next(answers) if url.endswith("config.ini") else VERSION,
+    )
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    read = wait_until_back("cam", timeout=10.0, poll=0.01, read_timeout=1.0)
+    assert read is not None and read.config.raw == CONFIG
+
+
+def test_wait_until_back_gives_up(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(camera_config, "_get", lambda _url, _timeout: None)
+    clock = iter([0.0, 0.0, 5.0, 11.0, 12.0])
+    monkeypatch.setattr(time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    assert wait_until_back("cam", timeout=10.0, poll=1.0, read_timeout=1.0) is None
+
+
+def test_backups_are_private_named_by_local_time_and_pruned(tmp_path: Path) -> None:
+    store = BackupStore(tmp_path / "camera" / "backups")
+    assert store.list() == []
+    names = []
+    for minute in range(3):
+        when = datetime.datetime(2026, 10, 27, 21, minute, 0).astimezone()
+        names.append(store.save(b"[Tab1]\nVOLUME=%d\n" % minute, now=when))
+    assert names[0] == "config-20261027-210000.ini"
+    assert _mode(tmp_path / "camera" / "backups") == 0o700
+    assert _mode(tmp_path / "camera" / "backups" / names[0]) == 0o600
+    assert [b.name for b in store.list()] == list(reversed(names))
+    assert store.list()[0].size == len(b"[Tab1]\nVOLUME=2\n")
+    store.prune(keep=2)
+    assert [b.name for b in store.list()] == [names[2], names[1]]
+    assert store.read(names[1]) == b"[Tab1]\nVOLUME=1\n"
+    assert store.read(names[0]) is None
+
+
+def test_backup_read_rejects_names_outside_the_pattern(tmp_path: Path) -> None:
+    store = BackupStore(tmp_path / "backups")
+    store.save(b"x")
+    for bad in ("../settings.json", "config-20261027-210000.ini/../x", "evil.ini"):
+        assert store.read(bad) is None
+
+
+def test_backup_save_twice_in_one_second_keeps_both(tmp_path: Path) -> None:
+    store = BackupStore(tmp_path / "backups")
+    when = datetime.datetime(2026, 10, 27, 21, 0, 0).astimezone()
+    first = store.save(b"a", now=when)
+    second = store.save(b"b", now=when)
+    assert first != second and store.read(second) == b"b"
+
+
+def test_backup_list_orders_same_second_saves_by_name_suffix_not_mtime(
+    tmp_path: Path,
+) -> None:
+    store = BackupStore(tmp_path / "backups")
+    when = datetime.datetime(2026, 10, 27, 21, 0, 0).astimezone()
+    first = store.save(b"a", now=when)
+    second = store.save(b"b", now=when)
+    assert second == first.replace(".ini", "-1.ini")
+    directory = tmp_path / "backups"
+    os.utime(directory / first, (1_000_100, 1_000_100))
+    os.utime(directory / second, (1_000_000, 1_000_000))
+    assert [b.name for b in store.list()] == [second, first]
+
+
+def test_wait_until_back_reads_with_the_read_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[float] = []
+
+    def spy(_address: str, timeout: float) -> None:
+        seen.append(timeout)
+
+    monkeypatch.setattr(camera_config, "fetch", spy)
+    ticks = iter(range(0, 100))
+    monkeypatch.setattr(
+        camera_config,
+        "time",
+        SimpleNamespace(sleep=lambda _s: None, monotonic=lambda: next(ticks)),
+    )
+    assert wait_until_back("cam", timeout=3.0, poll=1.0, read_timeout=7.5) is None
+    assert seen and set(seen) == {7.5}
+
+
+def test_prune_orders_by_name_and_never_deletes_the_protected_copy(
+    tmp_path: Path,
+) -> None:
+    store = BackupStore(tmp_path / "camera" / "backups")
+    directory = tmp_path / "camera" / "backups"
+    when = datetime.datetime(2026, 10, 27, 21, 0, 0).astimezone()
+    names = [store.save(b"x%d" % i, now=when) for i in range(11)]
+    # suffix 10 sorts after suffix 2 numerically, not as text
+    assert names[10].endswith("-10.ini")
+    # a skewed mtime must not make the newest copy look oldest
+    for name in names:
+        os.utime(directory / name, (1_000, 1_000))
+    store.prune(keep=3, protect=names[10])
+    left = {p.name for p in directory.iterdir()}
+    assert left == {names[10], names[9], names[8]}
+    store.prune(keep=0, protect=names[10])
+    assert [p.name for p in directory.iterdir()] == [names[10]]
+
+
+def test_backup_save_tightens_the_camera_folder(tmp_path: Path) -> None:
+    (tmp_path / "camera").mkdir(mode=0o755)
+    os.chmod(tmp_path / "camera", 0o755)
+    BackupStore(tmp_path / "camera" / "backups").save(b"x")
+    assert _mode(tmp_path / "camera") == 0o700

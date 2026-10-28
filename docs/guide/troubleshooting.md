@@ -145,6 +145,60 @@ A file that fails is retried after **Sync → Retry failed after** (default one
 day). A persistent 500 error from the dashcam usually means the file is
 corrupt on the SD card; it is skipped until the retry window passes.
 
+## Camera settings
+
+### The camera did not come back after applying
+
+The dialog says "Applied, but the camera has not come back yet". The upload
+was accepted but the camera did not answer within
+`camera.verify_timeout_seconds` (default 120 s), polling every
+`camera.verify_poll_seconds` (default 5 s). A camera that restarts slowly
+needs a longer timeout; raise `camera.verify_timeout_seconds` (10-600) in `settings.json`.
+Wait, press **Refresh** on the Camera pane, and check the dashcam is powered
+and in range. If the change was to Wi-Fi or cloud settings, the camera may
+now be on a network the app cannot reach: use the BlackVue phone app to fix
+it, then restore the backup from **Settings → Camera → Backups**. The backup
+name is in the dialog and in the log.
+
+### The apply request timed out or the upload failed
+
+An apply is one long request (up to `camera.upload_timeout_seconds` plus
+`camera.verify_timeout_seconds` plus two camera reads, about 3 minutes by
+default; size a proxy timeout above that). If a
+reverse proxy in front of the app times out sooner, the page shows a network
+error but the apply carries on; press **Refresh** on the Camera pane to see
+what the camera holds now. The same advice applies to "upload failed": the
+camera's file is unchanged unless the dialog says otherwise, so **Refresh**
+shows the truth. When the camera drops the connection without answering, the
+app continues to the verify step and says the camera did not acknowledge the
+upload; the result below that line is what the camera reports now. If an apply
+is refused with "another camera settings change is in progress", wait for the
+first one to end.
+
+### The camera kept a value
+
+The dialog lists keys under "The camera kept its own value for". The camera
+accepted the file but its firmware replaced or rejected those values, for
+example a number outside the range it supports. The other changes took
+effect. Check the value codes the camera accepts in the
+[camera configuration reference](../reference/blackvue-camera-config.md) and
+try again with a supported one.
+
+### Why the app warns about erasing the card
+
+Changing the time settings or image quality makes the camera format its
+microSD card, deleting every recording on it. The review dialog counts the
+recordings not yet downloaded and asks you to accept losing them. It is a
+warning rather than a block. Run a sync first and the count drops to zero.
+If it shows "can't check how many recordings are not downloaded yet", the
+camera is not reachable and **Apply** stays refused until it is.
+
+### "A sync is running"
+
+Applying is refused while a sync holds the lock, so a restarting camera never
+interrupts a download. Wait for the sync to finish, or stop it from the
+Dashboard, then apply again.
+
 ## Disk and retention
 
 ### `Not enough disk space left. Max used disk space percentage allowed : 90%`

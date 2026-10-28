@@ -14,7 +14,15 @@ import logging
 from flask import Blueprint, Response, abort, current_app, request
 
 from blackvuesync_v2.server.auth import login_required
+from blackvuesync_v2.server.camera_apply import (
+    ApplyRefused,
+    apply_changes,
+    pending_recordings,
+    restore_backup,
+    restore_diff,
+)
 from blackvuesync_v2.server.camera_config import (
+    BackupStore,
     CameraRead,
     CameraStore,
     Change,
@@ -137,6 +145,107 @@ def secret() -> Response:
     resp = _json({"key": f"{section}.{key}", "value": value})
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+@api_camera_bp.route("/pending", methods=["GET"])
+@login_required
+def pending() -> Response:
+    """counts recordings still only on the camera (the format gate)."""
+    store: SettingsStore = current_app.settings_store  # type: ignore[attr-defined]
+    count = pending_recordings(store.get())
+    if count is None:
+        return _json(
+            {"code": "CAMERA_OFFLINE", "error": "the camera is not reachable"}, 409
+        )
+    return _json({"pending": count})
+
+
+@api_camera_bp.route("/config", methods=["POST"])
+@login_required
+def apply() -> Response:
+    """applies staged changes to the camera."""
+    store: SettingsStore = current_app.settings_store  # type: ignore[attr-defined]
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        body = {}
+    raw = body.get("changes")
+    if not isinstance(raw, dict) or not all(isinstance(v, str) for v in raw.values()):
+        return _json(
+            {
+                "code": "INVALID_CHANGES",
+                "error": "changes must map Section.key to text",
+            },
+            422,
+        )
+    try:
+        result = apply_changes(
+            store,
+            raw,
+            body.get("confirm_format") is True,
+            body.get("accept_loss") is True,
+        )
+    except ApplyRefused as refused:
+        return _json(
+            {"code": refused.code, "error": str(refused), **refused.detail},
+            refused.status,
+        )
+    return _json(dataclasses.asdict(result))
+
+
+@api_camera_bp.route("/backups", methods=["GET"])
+@login_required
+def backups() -> Response:
+    """lists the saved config.ini copies, newest first."""
+    store: SettingsStore = current_app.settings_store  # type: ignore[attr-defined]
+    listing = BackupStore(store.path.parent / "camera" / "backups").list()
+    return _json(
+        [
+            {
+                "name": info.name,
+                "created": info.created.isoformat(),
+                "size": info.size,
+            }
+            for info in listing
+        ]
+    )
+
+
+@api_camera_bp.route("/backups/<name>", methods=["GET"])
+@login_required
+def backup_preview(name: str) -> Response:
+    """lists what restoring a backup would change on the camera right now."""
+    store: SettingsStore = current_app.settings_store  # type: ignore[attr-defined]
+    try:
+        changes = restore_diff(store, name, store.get())
+    except ApplyRefused as refused:
+        return _json(
+            {"code": refused.code, "error": str(refused), **refused.detail},
+            refused.status,
+        )
+    return _json({"changes": change_views(tuple(changes))})
+
+
+@api_camera_bp.route("/backups/<name>/restore", methods=["POST"])
+@login_required
+def restore(name: str) -> Response:
+    """restores a backup by applying its differences to the camera."""
+    store: SettingsStore = current_app.settings_store  # type: ignore[attr-defined]
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        body = {}
+    try:
+        result = restore_backup(
+            store,
+            name,
+            body.get("confirm_format") is True,
+            body.get("accept_loss") is True,
+        )
+    except ApplyRefused as refused:
+        return _json(
+            {"code": refused.code, "error": str(refused), **refused.detail},
+            refused.status,
+        )
+    return _json(dataclasses.asdict(result))
 
 
 __all__ = [

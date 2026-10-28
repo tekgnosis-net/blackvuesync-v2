@@ -739,6 +739,36 @@ def test_bootstrap_metrics_env_vars(settings_path: Path) -> None:
     assert m.state_file == "/tmp/state.json"
 
 
+def test_bootstrap_camera_env_vars(settings_path: Path) -> None:
+    """verifies CAMERA_* env vars seed the camera section."""
+    env = {
+        "CAMERA_READ_TIMEOUT": "2.5",
+        "CAMERA_BACKUP_COUNT": "25",
+        "CAMERA_VERIFY_TIMEOUT": "240",
+        "CAMERA_VERIFY_POLL": "2",
+        "CAMERA_UPLOAD_TIMEOUT": "60",
+    }
+    store = _make_store(settings_path, env=env)
+    c = store.get().camera
+    assert c.read_timeout_seconds == 2.5
+    assert c.backup_count == 25
+    assert c.verify_timeout_seconds == 240.0
+    assert c.verify_poll_seconds == 2.0
+    assert c.upload_timeout_seconds == 60.0
+    # the seeds are persisted, so a later start without the env keeps them
+    assert _make_store(settings_path).get().camera.backup_count == 25
+
+
+def test_bootstrap_camera_env_var_out_of_range_warns(
+    settings_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """verifies an out-of-range camera seed is reported at bootstrap."""
+    with caplog.at_level(logging.WARNING, logger="blackvuesync_v2.settings"):
+        store = _make_store(settings_path, env={"CAMERA_BACKUP_COUNT": "0"})
+    assert store.get().camera.backup_count == 0
+    assert "camera.backup_count must be between 1 and 100" in caplog.text
+
+
 # ---------------------------------------------------------------------------
 # file-perms safety check
 # ---------------------------------------------------------------------------
@@ -1399,3 +1429,29 @@ def test_camera_section_defaults_and_bounds() -> None:
         ]
     # files written before the section existed load the default
     assert _settings_from_dict({"version": 2}).camera.read_timeout_seconds == 3.0
+
+
+def test_camera_apply_knobs_defaults_and_bounds() -> None:
+    from blackvuesync_v2.settings import CameraSettings
+
+    cam = CameraSettings()
+    assert (cam.backup_count, cam.verify_timeout_seconds, cam.verify_poll_seconds) == (
+        10,
+        120.0,
+        5.0,
+    )
+    assert CameraSettings(backup_count=0).validate() == [
+        "camera.backup_count must be between 1 and 100"
+    ]
+    assert CameraSettings(verify_timeout_seconds=601).validate() == [
+        "camera.verify_timeout_seconds must be between 10 and 600"
+    ]
+    assert CameraSettings(verify_poll_seconds=0.5).validate() == [
+        "camera.verify_poll_seconds must be between 1 and 30"
+    ]
+    assert cam.upload_timeout_seconds == 30.0
+    assert CameraSettings(upload_timeout_seconds=4).validate() == [
+        "camera.upload_timeout_seconds must be between 5 and 120"
+    ]
+    assert CameraSettings(upload_timeout_seconds=121).validate() != []
+    assert CameraSettings(upload_timeout_seconds=120).validate() == []

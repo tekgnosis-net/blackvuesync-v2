@@ -61,6 +61,7 @@ nav:
   - Reference:
       - HTTP API: api.md
       - Recording file formats: reference/blackvue-file-formats.md
+      - Camera configuration: reference/blackvue-camera-config.md
   - Release notes: release-notes.md
   - Credits: credits.md
   - Contributing: contributing.md

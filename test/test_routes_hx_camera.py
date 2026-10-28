@@ -77,3 +77,75 @@ def test_change_in_non_utf8_section_renders(client: Any, camera: FakeCamera) -> 
     resp = client.get("/hx/camera/panes")
     assert resp.status_code == 200
     assert "�" in resp.get_data(as_text=True)
+
+
+def _control(html: str, key: str) -> str:
+    """returns the opening tag of the control carrying data-camera-key=key."""
+    import re
+
+    tags: list[str] = re.findall(r"<(?:input|select)[^>]*>", html)
+    for tag in tags:
+        if f'data-camera-key="{key}"' in tag:
+            return tag
+    raise AssertionError(f"no control for {key}")
+
+
+def test_panes_render_editable_controls(client: Any, camera: FakeCamera) -> None:
+    html = client.get("/hx/camera/panes").get_data(as_text=True)
+    select = _control(html, "Tab1.VideoQuality")
+    assert select.startswith('<select data-camera-key="Tab1.VideoQuality"')
+    assert 'data-original="0"' in select
+    led = _control(html, "Tab3.RECLED")
+    assert 'type="checkbox"' in led
+    vol = _control(html, "Tab3.VOLUME")
+    assert 'type="number"' in vol and 'value="5"' in vol
+    assert 'min="0"' in vol and 'max="10"' in vol
+    pw = _control(html, "Cloud.sta_pw")
+    assert 'type="password"' in pw and 'placeholder="unchanged"' in pw
+    assert 'value=""' in pw or "value=" not in pw
+    assert 'data-original=""' in pw and 'autocomplete="new-password"' in pw
+    assert 'data-camera-key="Tab1.RecordTime"' not in html
+    assert 'id="camera-apply-bar"' in html
+    assert 'data-formats-card="1"' in _control(html, "Tab1.VideoQuality")
+    assert "1E1BC3E1" not in html and "DemoHome-123" not in html
+
+
+def test_offline_controls_are_disabled(client: Any, camera: FakeCamera) -> None:
+    import re
+
+    client.get("/hx/camera/panes")
+    camera.files = {}
+    html = client.get("/hx/camera/panes").get_data(as_text=True)
+    tags = [
+        t
+        for t in re.findall(r"<(?:input|select)[^>]*>", html)
+        if "data-camera-key=" in t
+    ]
+    assert tags and all(" disabled" in t for t in tags)
+    assert 'id="camera-apply-bar"' not in html
+
+
+def test_time_zone_is_a_text_input(client: Any, camera: FakeCamera) -> None:
+    html = client.get("/hx/camera/panes").get_data(as_text=True)
+    tag = _control(html, "Tab1.TimeZone")
+    assert tag.startswith("<input") and 'type="text"' in tag
+    assert 'value="1000"' in tag and 'data-formats-card="1"' in tag
+
+
+def test_settings_page_has_backups_and_review(client: Any, camera: FakeCamera) -> None:
+    html = client.get("/settings").get_data(as_text=True)
+    assert 'data-section-nav="camera-backups"' in html
+    assert 'data-pane="camera-backups"' in html
+    assert 'id="camera-review"' in html
+
+
+def test_other_and_not_fitted_keys_are_editable(
+    client: Any, camera: FakeCamera
+) -> None:
+    camera.files["/Config/config.ini"] = CONFIG + b"\n[Fancy]\nMode=2\n"
+    html = client.get("/hx/camera/panes").get_data(as_text=True)
+    fancy = _control(html, "Fancy.Mode")
+    assert 'type="text"' in fancy and 'data-original="2"' in fancy
+    assert 'type="number"' in _control(html, "Tab3.DsmVolume")
+    assert 'data-camera-key="Tab1.RecordTime"' not in html
+    assert 'data-camera-key="Cloud.CloudSettingVersion"' not in html

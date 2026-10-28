@@ -8,6 +8,7 @@ import logging
 import threading
 import time
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -21,6 +22,35 @@ logger = logging.getLogger(__name__)
 # process-wide lock; held for the duration of an active sync; non-reentrant
 # so a second trigger while running returns "already_running" immediately.
 _sync_lock = threading.Lock()
+
+
+# the holder tag of a camera settings apply (a sync holds its job id instead)
+CAMERA_APPLY_HOLDER = "camera-apply"
+
+
+@contextlib.contextmanager
+def try_hold_sync_lock() -> Iterator[bool]:
+    """holds the sync lock for the block when free; yields False when busy.
+
+    while held, the holder is tagged CAMERA_APPLY_HOLDER so a refused caller
+    can tell an apply from a sync.
+    """
+    global _current_job_id  # pylint: disable=global-statement
+    held = _sync_lock.acquire(blocking=False)  # pylint: disable=consider-using-with
+    if held:
+        _current_job_id = CAMERA_APPLY_HOLDER
+    try:
+        yield held
+    finally:
+        if held:
+            _current_job_id = ""
+            _sync_lock.release()
+
+
+def lock_holder() -> str:
+    """returns the tag or job id of whoever holds the sync lock ("" if unknown)."""
+    return _current_job_id
+
 
 # reference to the current sync thread; useful for diagnostics
 _current_thread: threading.Thread | None = None

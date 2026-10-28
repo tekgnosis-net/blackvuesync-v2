@@ -1,0 +1,60 @@
+# Camera configuration reference
+
+Value codes for `config.ini` keys on the BlackVue DR900X Plus, and the
+endpoints the camera exposes for reading and changing settings.
+
+Source: DR900X Plus, firmware 1.015, calibrated 2026-10-27 by changing one
+setting at a time in the BlackVue app and diffing `config.ini`.
+
+## Calibrated value codes
+
+| Key | Codes |
+| --- | --- |
+| `Tab1.AutoParking` | 1 = Motion & Impact detection, 2 = Time lapse |
+| `Tab1.SpeedUnit` | 0 = km/h, 1 = MPH (2 = Off, DR900S table) |
+| `Tab2.NORMALSENSOR1-3`, `Tab2.PARKINGSENSOR1-3` | 0-10 |
+| `Tab2.MOTIONSENSOR` | 0-10 |
+| `Tab3.VOLUME` | 0-10 |
+| `Tab3.AlertLimit` | number in the display unit |
+| `Tab3.PSENSOR` | 0 = Off, 1 = Manual recording, 2 = Voice recording (differs from the DR900S table) |
+| `Tab3.LowvoltageVolt`, `Tab3.LowvoltageVoltHeavy` | volts x 100 (1180 = 11.8 V) |
+| `Wifi.WiFiBand` | 0 = 5 GHz, 1 = 2.4 GHz |
+
+`Tab1.TimeZone` is a signed HHMM offset from UTC (the fixture holds `1000`). The
+firmware's own list was never calibrated, so the settings page does not
+enumerate one: it validates the text instead (-1200 to +1400, minutes 00, 30
+or 45). The app writes it in the fixture's form: no leading `+`, zero-padded to
+four digits (`930` becomes `0930`, `-930` becomes `-0930`). `Tab1.SetTime` is a 24-hour `HHMM` time.
+
+## Endpoints
+
+- `GET /Config/config.ini` and `GET /Config/version.bin` need no
+  authentication.
+- `GET /upload.cgi` returns an HTML form. It shows that settings are changed
+  by `POST /upload.cgi` with `multipart/form-data`, a `FileType` field
+  (values `config`, `version`, `fwupgrade`) and a file field `FileData`.
+- The BlackVue app sends only `FileType=config` with a file named
+  `config.ini`. The same endpoint accepts firmware, which the app never sends.
+- The camera's multipart parser does not look for the closing boundary.
+  Observed on a DR900X Plus (firmware 1.015, 2026-10-29) by uploading the
+  camera's own file five times: a standard body ending in
+  `CRLF--boundary--CRLF` leaves the boundary line in the stored file; the
+  camera keeps the part data minus its last two bytes, unless the data ends in
+  `CRLF CRLF`, which it keeps whole. BlackVue Sync v2 therefore sends the file
+  with any trailing line breaks replaced by `CRLF CRLF` and no closing
+  boundary, so the stored file equals the sent bytes and repeated uploads do
+  not grow it. Every upload answered 200 within 0.1 s; the camera kept
+  serving HTTP (no restart) and the recording list was unchanged (no format).
+  A `Tab3.VOLUME` change through the apply pipeline verified in 0.2 s and
+  showed the new value on the next read. Only the time settings (time zone,
+  daylight saving) and the image-quality keys restart the camera, and those
+  also format the card (the `FORMAT_KEYS` the review dialog warns about).
+
+## Port 9771
+
+The camera accepts TCP connections on port 9771. This is the FOTA service
+described in the public 2023 BlackVue CVE research
+(<https://github.com/eyJhb/blackvue-cve-2023>): ping, restart and firmware
+upload without authentication. It is documented there for the DR750 LTE and
+was observed open on this DR900X Plus. BlackVue Sync v2 does not use it. A
+firewall rule that limits camera access to the sync host is recommended.

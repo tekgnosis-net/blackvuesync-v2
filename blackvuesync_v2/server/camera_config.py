@@ -17,7 +17,10 @@ import os
 import re
 import stat
 import tempfile
+import time
+import urllib.error
 import urllib.request
+import uuid
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -262,17 +265,273 @@ class CameraStore:
         )
 
 
+class PatchError(ValueError):
+    """the requested change cannot be applied to this file unambiguously."""
+
+
+class SelfCheckError(PatchError):
+    """the patched file differs from the original beyond the requested keys."""
+
+
+CONTROL_RE = re.compile(r"[\x00-\x1f\x7f\x85\u2028\u2029]")
+
+
+def patch(raw: bytes, changes: dict[tuple[str, str], str]) -> bytes:
+    """rewrites the value of each changed key in place; every other byte stays.
+
+    a key that is missing or duplicated in its section raises PatchError, as
+    does a value with control characters (which could inject lines).
+    """
+    for (section, key), value in changes.items():
+        if CONTROL_RE.search(value):
+            raise PatchError(f"{section}.{key}: value contains control characters")
+    pending = dict(changes)
+    seen: set[tuple[str, str]] = set()
+    out: list[bytes] = []
+    section = GENERAL_SECTION
+    for line in raw.splitlines(keepends=True):
+        body = line.decode("utf-8", errors="surrogateescape").rstrip("\r\n")
+        if body.strip().startswith("[") and body.strip().endswith("]"):
+            section = body.strip()[1:-1].strip()
+            out.append(line)
+            continue
+        key, sep, _ = body.partition("=")
+        name = key.strip()
+        if not sep or not _KEY_RE.fullmatch(name):
+            out.append(line)
+            continue
+        if (section, name) in seen and (section, name) in changes:
+            raise PatchError(f"{section}.{name}: key appears more than once")
+        seen.add((section, name))
+        if (section, name) in pending:
+            value = pending.pop((section, name))
+            # keeps the key text and its spacing up to "=" exactly as written
+            head = key + "=" + (" " if key.endswith(" ") else "") + value
+            out.append(
+                head.encode("utf-8", errors="surrogateescape")
+                + line[len(body.encode("utf-8", errors="surrogateescape")) :]
+            )
+        else:
+            out.append(line)
+    if pending:
+        missing = ", ".join(f"{s}.{k}" for s, k in pending)
+        raise PatchError(f"not in the camera's file: {missing}")
+    return b"".join(out)
+
+
+def self_check(
+    before: bytes, after: bytes, changes: dict[tuple[str, str], str]
+) -> None:
+    """asserts that after differs from before only in the changed keys."""
+    old = _first_values(parse(before))
+    new = _first_values(parse(after))
+    if set(old) != set(new):
+        raise SelfCheckError("patched file has a different set of keys")
+    for name, value in new.items():
+        expected = changes.get(name, old[name])
+        if value != expected:
+            raise SelfCheckError(f"{name[0]}.{name[1]} did not patch as expected")
+
+
+class UploadError(RuntimeError):
+    """the camera did not accept the upload; status is None for transport errors."""
+
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+
+
+def _post(url: str, body: bytes, content_type: str, timeout: float) -> int:
+    """POSTs body and returns the HTTP status; raises UploadError otherwise."""
+    request = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={"Content-Type": content_type, "Content-Length": str(len(body))},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as resp:  # noqa: S310
+            resp.read()
+            status: int = resp.status
+            return status
+    except urllib.error.HTTPError as error:
+        # an HTTPError built without a body (fp None) has nothing to close
+        # and raises on close() before Python 3.10
+        if error.fp is not None:
+            error.close()
+        raise UploadError(f"camera answered {error.code}", status=error.code) from error
+    except (OSError, ValueError, http.client.HTTPException) as error:
+        raise UploadError(f"upload failed: {error}") from error
+
+
+def framed(raw: bytes) -> bytes:
+    """returns the bytes the camera stores for raw: the file plus one blank line.
+
+    the DR900X Plus (firmware 1.015) ignores the multipart closing boundary and
+    keeps the part data minus its last two bytes, unless the data ends with
+    CRLF CRLF, which it keeps whole (see stored_by_camera). sending exactly this
+    form makes the stored file equal to the sent bytes, and sending the stored
+    file again produces the same bytes, so repeated applies never grow it.
+    """
+    return raw.rstrip(b"\r\n") + b"\r\n\r\n"
+
+
+def stored_by_camera(data: bytes) -> bytes:
+    """models what the camera keeps of an uploaded FileData part (observed
+    2026-10-29 on a DR900X Plus, firmware 1.015, five uploads).
+
+    a standard body ending in CRLF--boundary--CRLF left the boundary line in
+    the file: the camera only drops the final two bytes. the mock cameras use
+    this so the test suites see the real framing.
+    """
+    if data.endswith(b"\r\n\r\n"):
+        return data
+    return data[:-2]
+
+
+def upload(address: str, raw: bytes, timeout: float) -> int:
+    """uploads raw as the camera's config.ini (upload.cgi, FileType=config).
+
+    the body carries no closing boundary: the camera does not parse one and
+    would store it as part of the file (see framed).
+    """
+    boundary = "----blackvuesync-" + uuid.uuid4().hex
+    bound = boundary.encode()
+    body = b"".join(
+        [
+            b"--" + bound + b"\r\n",
+            b'Content-Disposition: form-data; name="FileType"\r\n\r\nconfig\r\n',
+            b"--" + bound + b"\r\n",
+            b'Content-Disposition: form-data; name="FileData"; filename="config.ini"\r\n',
+            b"Content-Type: application/octet-stream\r\n\r\n",
+            framed(raw),
+        ]
+    )
+    return _post(
+        f"http://{address}/upload.cgi",
+        body,
+        f"multipart/form-data; boundary={boundary}",
+        timeout,
+    )
+
+
+def wait_until_back(
+    address: str, timeout: float, poll: float, read_timeout: float
+) -> CameraRead | None:
+    """polls config.ini until the camera answers or timeout seconds pass.
+
+    each read waits read_timeout seconds; poll is the pause between reads.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        read = fetch(address, read_timeout)
+        if read is not None:
+            return read
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(poll)
+
+
+BACKUP_NAME_RE = re.compile(r"config-\d{8}-\d{6}(?:-\d+)?\.ini")
+_BACKUP_PARTS_RE = re.compile(r"config-(\d{8}-\d{6})(?:-(\d+))?\.ini")
+
+
+def _backup_order(name: str) -> tuple[str, int]:
+    """sorts a backup name by its timestamp, then by its collision suffix."""
+    match = _BACKUP_PARTS_RE.fullmatch(name)
+    assert match is not None  # list() yields only names BACKUP_NAME_RE accepts
+    return match.group(1), int(match.group(2) or 0)
+
+
+@dataclasses.dataclass(frozen=True)
+class BackupInfo:
+    """one saved copy of the camera's file."""
+
+    name: str
+    created: datetime.datetime
+    size: int
+
+
+class BackupStore:
+    """keeps copies of config.ini taken before each upload (0700/0600)."""
+
+    def __init__(self, directory: Path) -> None:
+        self._dir = directory
+
+    def save(self, raw: bytes, now: datetime.datetime | None = None) -> str:
+        """stores raw under a local-time name; returns the name."""
+        self._dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        # parents=True creates the camera/ folder with the umask's mode
+        os.chmod(self._dir.parent, 0o700)
+        os.chmod(self._dir, 0o700)
+        stamp = (now or datetime.datetime.now()).astimezone().strftime("%Y%m%d-%H%M%S")
+        name = f"config-{stamp}.ini"
+        suffix = 1
+        while (self._dir / name).exists():
+            name = f"config-{stamp}-{suffix}.ini"
+            suffix += 1
+        _write_private(self._dir / name, raw)
+        return name
+
+    def list(self) -> list[BackupInfo]:
+        """returns the backups, newest first."""
+        if not self._dir.is_dir():
+            return []
+        infos = []
+        for path in self._dir.iterdir():
+            if BACKUP_NAME_RE.fullmatch(path.name) and path.is_file():
+                stat_result = path.stat()
+                infos.append(
+                    BackupInfo(
+                        name=path.name,
+                        created=datetime.datetime.fromtimestamp(
+                            stat_result.st_mtime, datetime.timezone.utc
+                        ),
+                        size=stat_result.st_size,
+                    )
+                )
+        return sorted(infos, key=lambda b: _backup_order(b.name), reverse=True)
+
+    def prune(self, keep: int, protect: str | None = None) -> None:
+        """deletes all but the newest keep backups; protect is never deleted.
+
+        newest follows the name (timestamp, then collision suffix), not the
+        file's mtime, so a clock step cannot make the fresh copy look old.
+        """
+        for info in self.list()[max(keep, 0) :]:
+            name = info.name
+            if name != protect:
+                (self._dir / name).unlink(missing_ok=True)
+
+    def read(self, name: str) -> bytes | None:
+        """returns a backup's bytes; None for an unknown or malformed name."""
+        if not BACKUP_NAME_RE.fullmatch(name):
+            return None
+        path = self._dir / name
+        return path.read_bytes() if path.is_file() else None
+
+
 __all__ = [
+    "CONTROL_RE",
     "GENERAL_SECTION",
+    "BACKUP_NAME_RE",
+    "BackupInfo",
+    "BackupStore",
     "CameraFile",
     "CameraRead",
     "CameraStore",
     "Change",
+    "PatchError",
     "ConfigEntry",
+    "UploadError",
     "VersionInfo",
     "diff",
     "fetch",
     "parse",
     "parse_version",
+    "patch",
     "safe_text",
+    "self_check",
+    "upload",
+    "wait_until_back",
 ]

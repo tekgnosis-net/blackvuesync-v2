@@ -532,12 +532,28 @@ class CameraSettings(_Section):
     # seconds each camera settings read waits; short, so an absent car does not
     # stall the settings page
     read_timeout_seconds: float = 3.0
+    # copies of the camera's file kept before each upload
+    backup_count: int = 10
+    # how long an apply waits for the camera after an upload (it may reboot)
+    verify_timeout_seconds: float = 120.0
+    # seconds between read-back attempts while waiting
+    verify_poll_seconds: float = 5.0
+    # how long the config upload waits for the camera's answer
+    upload_timeout_seconds: float = 30.0
 
     def _validate_values(self) -> list[str]:
         """validates camera settings; returns a list of error strings."""
         errors: list[str] = []
         if not 0.5 <= self.read_timeout_seconds <= 30:
             errors.append("camera.read_timeout_seconds must be between 0.5 and 30")
+        if not 1 <= self.backup_count <= 100:
+            errors.append("camera.backup_count must be between 1 and 100")
+        if not 10 <= self.verify_timeout_seconds <= 600:
+            errors.append("camera.verify_timeout_seconds must be between 10 and 600")
+        if not 1 <= self.verify_poll_seconds <= 30:
+            errors.append("camera.verify_poll_seconds must be between 1 and 30")
+        if not 5 <= self.upload_timeout_seconds <= 120:
+            errors.append("camera.upload_timeout_seconds must be between 5 and 120")
         return errors
 
 
@@ -1003,6 +1019,14 @@ class SettingsStore:
 
         viewer = ViewerSettings()
 
+        camera = CameraSettings(
+            read_timeout_seconds=float(_env("CAMERA_READ_TIMEOUT", "3.0")),
+            backup_count=int(_env("CAMERA_BACKUP_COUNT", "10")),
+            verify_timeout_seconds=float(_env("CAMERA_VERIFY_TIMEOUT", "120.0")),
+            verify_poll_seconds=float(_env("CAMERA_VERIFY_POLL", "5.0")),
+            upload_timeout_seconds=float(_env("CAMERA_UPLOAD_TIMEOUT", "30.0")),
+        )
+
         web = WebSettings(
             port=int(_env("BLACKVUESYNC_PORT", "8080")),
         )
@@ -1025,9 +1049,13 @@ class SettingsStore:
             metrics=metrics,
             stats=stats,
             viewer=viewer,
+            camera=camera,
             web=web,
             auth=auth,
         )
+        # out-of-range seeds are kept but reported, as for a hand-edited file
+        for error in settings.validate():
+            logger.warning("settings validation error: %s", error)
 
         bootstrapped_fields = [
             k

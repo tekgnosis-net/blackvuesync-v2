@@ -10,13 +10,15 @@ from __future__ import annotations
 import dataclasses
 import re
 
-from blackvuesync_v2.server.camera_config import CameraFile, safe_text
+from blackvuesync_v2.server.camera_config import CONTROL_RE, CameraFile, safe_text
+from blackvuesync_v2.server.camera_crypto import encrypt_password
 
 MASK = "•" * 8
 
 _ASCII_INT_RE = re.compile(r"-?[0-9]+")
 _ASCII_HOUR_RE = re.compile(r"[0-9]{1,2}")
-_ASCII_OFFSET_RE = re.compile(r"-?[0-9]{1,4}")
+_ASCII_OFFSET_RE = re.compile(r"[+-]?[0-9]{1,4}")
+_ASCII_TIME_RE = re.compile(r"[0-9]{4}")
 
 
 def _is_password_key(key: str) -> bool:
@@ -47,6 +49,8 @@ class CameraField:
     read_only: bool = False
     not_fitted: bool = False  # hardware absent on the dr900x plus
     help: str = ""
+    minimum: int | None = None  # inclusive bound for number widgets
+    maximum: int | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -131,9 +135,17 @@ _FIELDS: tuple[CameraField, ...] = (
         formats_card=True,
         help="24-hour HHMM, used when the time source is manual",
     ),
-    CameraField("Tab1", "TimeZone", "Time zone", "select", formats_card=True),
+    CameraField(
+        "Tab1",
+        "TimeZone",
+        "Time zone",
+        "text",
+        formats_card=True,
+        help="UTC offset as HHMM, like 1000 or -1100; minutes 00, 30 or 45",
+    ),
     _t("Tab1", "Daylight", "Daylight saving time", formats_card=True),
     _t("Tab1", "GpsSync", "Sync time with GPS", formats_card=True),
+    # minimum and maximum stay unset: the firmware's range is uncalibrated
     _n(
         "Tab1",
         "ImageSetting",
@@ -149,7 +161,12 @@ _FIELDS: tuple[CameraField, ...] = (
         formats_card=True,
     ),
     _t("Tab1", "NormalRecord", "Normal recording"),
-    _n("Tab1", "AutoParking", "Parking mode", help="value codes not confirmed yet"),
+    _s(
+        "Tab1",
+        "AutoParking",
+        "Parking mode",
+        (("1", "Motion & Impact detection"), ("2", "Time lapse")),
+    ),
     _t("Tab1", "RearParkingMode", "Rear camera recording in parking mode"),
     _t("Tab1", "VoiceRecord", "Voice recording"),
     _t("Tab1", "DateDisplay", "Date and time display"),
@@ -174,14 +191,32 @@ _FIELDS: tuple[CameraField, ...] = (
     _t("Tab1", "UseGpsInfo", "GPS location recording"),
     # sensitivity ([Tab2])
     *(
-        _n("Tab2", f"NORMALSENSOR{n}", f"G-sensor, normal mode: {axis}")
+        _n(
+            "Tab2",
+            f"NORMALSENSOR{n}",
+            f"G-sensor, normal mode: {axis}",
+            minimum=0,
+            maximum=10,
+        )
         for n, axis in _SENSOR_AXES
     ),
     *(
-        _n("Tab2", f"PARKINGSENSOR{n}", f"G-sensor, parking mode: {axis}")
+        _n(
+            "Tab2",
+            f"PARKINGSENSOR{n}",
+            f"G-sensor, parking mode: {axis}",
+            minimum=0,
+            maximum=10,
+        )
         for n, axis in _SENSOR_AXES
     ),
-    _n("Tab2", "MOTIONSENSOR", "Motion detection, parking mode"),
+    _n(
+        "Tab2",
+        "MOTIONSENSOR",
+        "Motion detection, parking mode",
+        minimum=0,
+        maximum=10,
+    ),
     _n(
         "Tab2",
         "FrontMotionRegion",
@@ -206,10 +241,10 @@ _FIELDS: tuple[CameraField, ...] = (
         "Tab3",
         "PSENSOR",
         "Proximity sensor",
-        (("0", "Voice recording on/off"), ("1", "Manual recording"), ("2", "Off")),
+        (("0", "Off"), ("1", "Manual recording"), ("2", "Voice recording")),
     ),
     *(_t("Tab3", key, f"Voice guidance: {what}") for key, what in _VOICES),
-    _n("Tab3", "VOLUME", "Volume"),
+    _n("Tab3", "VOLUME", "Volume", minimum=0, maximum=10),
     _t("Tab3", "ScheduledReboot", "Scheduled reboot"),
     CameraField("Tab3", "ScheduledRebootTime", "Scheduled reboot time", "hour"),
     _n(
@@ -218,7 +253,12 @@ _FIELDS: tuple[CameraField, ...] = (
         "Speed alert unit",
         help="value codes not confirmed yet",
     ),
-    _n("Tab3", "AlertLimit", "Speed alert limit"),
+    _n(
+        "Tab3",
+        "AlertLimit",
+        "Speed alert limit",
+        help="in the speed unit from the Basic tab",
+    ),
     _t("Tab3", "Battery", "Battery protection", help="hardwired installations only"),
     _n(
         "Tab3",
@@ -344,6 +384,14 @@ class FieldView:
     has_value: bool
     formats_card: bool
     help: str
+    widget: str = "readonly"
+    options: tuple[tuple[str, str], ...] = ()
+    minimum: int | None = None
+    maximum: int | None = None
+    maxlength: int | None = None
+    editable: bool = (
+        False  # writable key (unknown keys as text): the panes render a control
+    )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -375,6 +423,12 @@ def _view(section: str, key: str, raw: str, known: bool) -> FieldView:
         has_value=bool(raw),
         formats_card=field.formats_card,
         help=field.help,
+        widget=field.widget,
+        options=tuple((safe_text(v), safe_text(t)) for v, t in field.options),
+        minimum=field.minimum,
+        maximum=field.maximum,
+        maxlength=_TEXT_LIMITS.get((section, key)),
+        editable=not field.read_only and field.widget != "readonly",
     )
 
 
@@ -411,8 +465,112 @@ def build_tabs(cfile: CameraFile) -> list[TabView]:
     ]
 
 
+FORMAT_KEYS: frozenset[tuple[str, str]] = frozenset(
+    (f.section, f.key) for f in _FIELDS if f.formats_card
+)
+_INT_RE = re.compile(r"-?[0-9]{1,6}")
+_TEXT_LIMITS = {("Tab3", "userString"): 20}
+
+
+def _valid_offset(value: str) -> bool:
+    """returns whether value is a utc offset in HHMM (-1200 to +1400, :00/:30/:45)."""
+    if not _ASCII_OFFSET_RE.fullmatch(value):
+        return False
+    number = int(value)
+    return -1200 <= number <= 1400 and abs(number) % 100 in (0, 30, 45)
+
+
+def _normal_offset(value: str) -> str:
+    """writes an offset in the camera's own form: no plus, four digits."""
+    sign = "-" if value.startswith("-") else ""
+    return sign + value.lstrip("+-").zfill(4)
+
+
+def _valid_clock(value: str) -> bool:
+    """returns whether value is an empty or a 24-hour HHMM time."""
+    if value == "":
+        return True
+    if not _ASCII_TIME_RE.fullmatch(value):
+        return False
+    return int(value[:2]) <= 23 and int(value[2:]) <= 59
+
+
+def validate_change(  # pylint: disable=too-many-return-statements,too-many-branches
+    section: str, key: str, value: str
+) -> list[str]:
+    """returns the problems with setting section.key to value (empty = ok)."""
+    name = f"{section}.{key}"
+    if CONTROL_RE.search(value):
+        return [f"{name}: control characters are not allowed"]
+    field = field_for(section, key)
+    if field.read_only:
+        return [f"{name}: read-only"]
+    if field.secret:
+        if value == "" and key != "ap_pw":
+            return []
+        return (
+            []
+            if 8 <= len(value.encode("utf-8")) <= 32
+            else [f"{name}: 8 to 32 characters"]
+        )
+    if field.key == "TimeZone":
+        if _valid_offset(value):
+            return []
+        return [f"{name}: must be a UTC offset like 1000 or -1100"]
+    if field.key == "SetTime":
+        if _valid_clock(value):
+            return []
+        return [f"{name}: must be a 24-hour time like 0930"]
+    if field.widget == "select":
+        allowed = [raw for raw, _label in field.options]
+        return [] if value in allowed else [f"{name}: not one of {', '.join(allowed)}"]
+    if field.widget == "toggle":
+        return [] if value in ("0", "1") else [f"{name}: must be 0 or 1"]
+    if field.widget == "hour":
+        ok = _ASCII_HOUR_RE.fullmatch(value) is not None and int(value) <= 23
+        return [] if ok else [f"{name}: must be an hour from 0 to 23"]
+    if field.widget == "number":
+        if not _INT_RE.fullmatch(value):
+            return [f"{name}: must be a whole number"]
+        low, high = field.minimum, field.maximum
+        if low is not None and high is not None and not low <= int(value) <= high:
+            return [f"{name}: must be between {low} and {high}"]
+        return []
+    if key.endswith("_ssid") and len(value.encode("utf-8")) > 32:
+        return [f"{name}: at most 32 bytes"]
+    limit = _TEXT_LIMITS.get((section, key))
+    if limit is not None and len(value) > limit:
+        return [f"{name}: at most {limit} characters"]
+    return []
+
+
+def prepare_changes(
+    raw_changes: dict[str, str],
+) -> tuple[dict[tuple[str, str], str], list[str]]:
+    """validates "Section.key" -> value pairs and encodes passwords for the file."""
+    changes: dict[tuple[str, str], str] = {}
+    errors: list[str] = []
+    for full_key, value in raw_changes.items():
+        section, dot, key = full_key.partition(".")
+        if not dot or not section or not key:
+            errors.append(f"{full_key}: expected Section.key")
+            continue
+        problems = validate_change(section, key, str(value))
+        if problems:
+            errors.extend(problems)
+            continue
+        if is_secret(section, key) and value != "":
+            changes[(section, key)] = encrypt_password(str(value))
+        elif (section, key) == ("Tab1", "TimeZone"):
+            changes[(section, key)] = _normal_offset(str(value))
+        else:
+            changes[(section, key)] = str(value)
+    return changes, errors
+
+
 __all__ = [
     "FIELDS",
+    "FORMAT_KEYS",
     "MASK",
     "TABS",
     "CameraField",
@@ -424,4 +582,6 @@ __all__ = [
     "field_for",
     "format_utc_offset",
     "is_secret",
+    "prepare_changes",
+    "validate_change",
 ]

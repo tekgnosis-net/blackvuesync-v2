@@ -111,7 +111,7 @@ Settings are organized into twelve frozen-dataclass sections (schema
 | metrics | immediate | file, pushgateway_url, job, instance, state_file |
 | stats | next_tick | retention_days |
 | viewer | immediate | journey_mode, speed_unit, continuous_play |
-| camera | immediate | read_timeout_seconds |
+| camera | immediate | read_timeout_seconds, backup_count, verify_timeout_seconds, verify_poll_seconds, upload_timeout_seconds |
 | web | restart | port, session_lifetime_hours |
 | auth | immediate | mode, username, password_hash, session_secret, trusted_proxies, proxy_user_header |
 | system | restart | destination, dry_run |
@@ -126,7 +126,9 @@ Env vars read on first-run bootstrap: `ADDRESS`, `TIMEOUT`,
 `BLACKVUESYNC_SCHEDULE`, `BLACKVUESYNC_TIMEZONE`, `PRIORITY`, `GROUPING`,
 `INCLUDE`, `EXCLUDE`, `RETRY_FAILED_AFTER`, `SKIP_METADATA`, `AFFINITY_KEY`,
 `KEEP`, `MAX_USED_DISK`, `VERBOSE`, `QUIET`, `LOG_FORMAT`, `METRICS_*`,
-`STATS_RETENTION_DAYS`, `BLACKVUESYNC_PORT`, `BLACKVUESYNC_ADMIN_USERNAME`,
+`STATS_RETENTION_DAYS`, `CAMERA_*` (`READ_TIMEOUT`, `BACKUP_COUNT`,
+`VERIFY_TIMEOUT`, `VERIFY_POLL`, `UPLOAD_TIMEOUT`), `BLACKVUESYNC_PORT`,
+`BLACKVUESYNC_ADMIN_USERNAME`,
 `BLACKVUESYNC_ADMIN_PASSWORD` (hashed into `auth.password_hash` when at least
 12 characters; never logged). `CRON` and `RUN_ONCE` are retired and only produce a warning. `DRY_RUN` and
 `TZ` are not seeded into the file; `system.dry_run` and `schedule.timezone`
@@ -240,8 +242,14 @@ application, structured as follows:
   dashcam's `version.bin` and `config.ini`.
 - `routes/api_camera.py` -- `GET /api/camera/config` (live read of the
   camera's `config.ini` with snapshot fallback and change diff) and
-  `GET /api/camera/secret` (one decrypted password on request).
-- `routes/hx_camera.py` -- `GET /hx/camera/panes`, the read-only Camera panes.
+  `GET /api/camera/secret` (one decrypted password on request),
+  `GET /api/camera/pending` (recordings not yet downloaded, the format gate's
+  count), `POST /api/camera/config` (apply staged changes),
+  `GET /api/camera/backups` and `POST /api/camera/backups/<name>/restore`.
+  `ApplyRefused` codes map to `{code, error}` JSON.
+- `routes/hx_camera.py` -- `GET /hx/camera/panes`, the Camera panes (editable
+  controls carry `data-camera-key` / `data-original`; `settings.js` stages
+  edits, drives the review dialog and the Backups pane).
 - `routes/api_recordings.py` -- `/api/recordings/recent`.
 - `routes/api_schedule.py` -- `POST /api/schedule/pause|resume`.
 - `routes/api_logs.py` -- `/api/logs/recent` snapshot and `/api/logs/stream` SSE.
@@ -294,7 +302,22 @@ application, structured as follows:
   key); the only module that imports `cryptography`.
 - `camera_config.py` -- reads `config.ini` / `version.bin` without rewriting
   them, keeps the 0700/0600 snapshot under `<settings dir>/camera/` and diffs
-  successive reads.
+  successive reads. `upload()` frames the file the way the camera's parser
+  stores it unchanged (`framed()`: trailing line breaks become CRLF CRLF, no
+  closing boundary); `stored_by_camera()` models that parser for the mock
+  cameras in `test/` and `features/`.
+- `camera_apply.py` -- the apply pipeline: fresh read, format gate, patch and
+  self-check, backup (`<settings dir>/camera/backups/`, rotated by
+  `camera.backup_count`), upload, `wait_until_back`, verify by value (`kept`)
+  and by byte (`file_exact`, against `camera_config.framed`). It holds the sync
+  lock through `sync_runner.try_hold_sync_lock()` (a non-blocking context
+  manager yielding False while a sync runs, so apply answers 409
+  `SYNC_RUNNING` and a scheduled sync is skipped meanwhile). The format gate
+  covers `camera_schema.FORMAT_KEYS`: it answers 409
+  `FORMAT_CONFIRMATION_REQUIRED` with `pending` until `confirm_format` (and
+  `accept_loss` when recordings are pending) are true. It is a warning the
+  user may accept, not a hard block. Restoring a backup applies its diff
+  through the same pipeline.
 - `camera_schema.py` -- labels and display rules for the DR900X Plus keys;
   unknown keys go under "Other", and password-like names are always masked.
 - `gps.py` / `gsensor.py` -- stdlib parsers for `.gps` (NMEA) and `.3gf`
@@ -457,6 +480,9 @@ Two logger hierarchies:
 - `test/test_settings_form.py`, `test/test_settings_page.py`,
   `test/test_dashboard_render.py`, `test/test_dashboard_sse_handoff.py` --
   page rendering
+- `test/test_camera_apply.py` -- apply pipeline, format gate, sync lock,
+  backups and restore; `features/camera_settings.feature` -- Behave scenario
+  that applies a setting against the mock dashcam
 - `test/test_camera_*.py`, `test/test_routes_api_camera.py`,
   `test/test_routes_hx_camera.py`, `test/e2e/test_camera_settings.py` --
   camera crypto, config, schema, routes and browser tests; the fixtures in

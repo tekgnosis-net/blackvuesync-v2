@@ -20,6 +20,8 @@
       <button type="button" class="settings-nav-item" data-section-nav="camera-{{ t.name }}"
               @click="select">{{ t.label }}</button>
     {% endfor %}
+    <button type="button" class="settings-nav-item" data-section-nav="camera-backups"
+            @click="select">Backups</button>
   </nav>
 
   <div class="settings-panes">
@@ -57,8 +59,19 @@
         </section>
       {% endfor %}
     </div>
+    <section class="settings-pane camera-pane" data-pane="camera-backups">
+      <header class="settings-pane-header">
+        <h2 class="settings-pane-title">Camera &rsaquo; Backups</h2>
+      </header>
+      <p class="camera-status">Each change to the camera is preceded by a backup of its config.ini.
+        Restoring one goes through the same review.</p>
+      <div class="settings-errors" data-backups-error hidden></div>
+      <p class="camera-status" data-backups-empty hidden>No backups yet.</p>
+      <ul class="camera-backups" data-backups-list></ul>
+    </section>
   </div>
 
   {% include "_partials/password_dialog.html" %}
+  {% include "_partials/camera_review_dialog.html" %}
 </div>
 {% endblock %}
